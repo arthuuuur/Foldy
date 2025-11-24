@@ -110,15 +110,43 @@ function RouteComponent() {
         @media (max-width: 899px) {
           .layout-container {
             flex-direction: column !important;
+            height: auto !important;
+            min-height: 100vh !important;
+            max-height: none !important;
+            overflow-y: visible !important;
           }
+          body, html {
+            overflow-y: auto !important;
+            overflow-x: hidden;
+          }
+        }
+        @media (min-width: 900px) {
+          body, html {
+            overflow: hidden;
+          }
+        }
+        body {
+          overflow-x: hidden;
+          margin: 0;
+          padding: 0;
+        }
+        html {
+          overflow-x: hidden;
+        }
+        * {
+          box-sizing: border-box;
         }
       `}</style>
             <div
                 className="relative layout-container"
                 style={{
-                    minHeight: 'calc(100vh - 64px)',
+                    height: 'calc(100vh - 64px)',
+                    maxHeight: 'calc(100vh - 64px)',
                     display: 'flex',
                     flexDirection: 'row',
+                    overflow: 'hidden',
+                    margin: 0,
+                    padding: 0,
                 }}
             >
                 {/* Bouton toggle pour le panel - caché en mobile */}
@@ -145,25 +173,28 @@ function RouteComponent() {
                 <Box
                     sx={{
                         width: {
-                            xs: '100%', // Pleine largeur en mobile
-                            md: isPanelOpen ? '300px' : '0px' // Comportement normal sur desktop
+                            xs: '100%',
+                            md: isPanelOpen ? '300px' : '0px'
                         },
-                        minHeight: { xs: 'auto', md: 'calc(100vh - 64px)' },
+                        minHeight: { xs: 'auto', md: '300px' },
+                        maxHeight: { xs: 'auto', md: 'calc(100vh - 64px)' },
                         backgroundColor: '#1e293b',
                         borderRight: { xs: 'none', md: '2px solid #334155' },
                         borderBottom: { xs: '2px solid #334155', md: 'none' },
                         transition: 'width 0.3s ease',
-                        overflow: { xs: 'visible', md: 'hidden' },
+                        overflow: 'hidden',
                         display: 'flex',
                         flexDirection: 'column',
                         position: 'relative',
+                        flexShrink: 0,
                     }}
                 >
                     <Box sx={{
                         flex: 1,
                         overflowY: 'auto',
+                        overflowX: 'hidden',
                         p: 3,
-                        pb: { xs: 2, md: 10 } // Moins de padding en mobile
+                        pb: '100px', // Padding pour les boutons absolus
                     }}>
                         {/* Upload Image */}
                         <Box sx={{ mb: 3 }}>
@@ -410,15 +441,17 @@ function RouteComponent() {
                     {/* Boutons sticky en bas */}
                     <Box
                         sx={{
-                            position: { xs: 'relative', md: 'absolute' }, // Relative en mobile, absolute en desktop
+                            position: 'absolute',
                             bottom: 0,
                             left: 0,
                             right: 0,
                             p: 2,
                             backgroundColor: '#1e293b',
                             borderTop: '2px solid #334155',
-                            display: 'flex',
+                            display: { xs: 'flex', md: 'flex' },
                             gap: 2,
+                            zIndex: 10,
+                            flexShrink: 0,
                         }}
                     >
                         <Button
@@ -462,15 +495,20 @@ function RouteComponent() {
                 <Box
                     sx={{
                         flex: 1,
-                        width: { xs: '100%', md: 'auto' }, // Pleine largeur en mobile
+                        width: { xs: '100%', md: 'auto' },
+                        height: { xs: 'auto', md: 'calc(100vh - 64px)' },
+                        minHeight: { xs: '400px', md: 'calc(100vh - 64px)' },
+                        maxHeight: { xs: 'none', md: 'calc(100vh - 64px)' },
                         transition: 'all 0.3s ease',
-                        p: { xs: 2, md: 4 }, // Moins de padding en mobile
+                        p: { xs: 2, md: 4 },
+                        overflow: 'hidden',
+                        boxSizing: 'border-box',
                     }}
                 >
                     <Box
                         sx={{
-                            height: { xs: '400px', md: '100%' }, // Hauteur fixe en mobile
-                            minHeight: { md: 'calc(100vh - 64px - 32px)' }, // Hauteur complète en desktop
+                            height: '100%',
+                            width: '100%',
                             border: '2px solid #334155',
                             borderRadius: '8px',
                             backgroundColor: 'white',
@@ -478,6 +516,7 @@ function RouteComponent() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: '#64748b',
+                            boxSizing: 'border-box',
                         }}
                     >
                         Votre contenu généré apparaîtra ici
