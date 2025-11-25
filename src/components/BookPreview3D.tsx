@@ -64,6 +64,10 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     const bookDepthInfo = calculateBookDepth(pattern, numberOfPages);
     const maxDimension = Math.max(heightInCm, widthInCm, bookDepthInfo.totalDepth);
 
+    console.log('BookPreview3D - totalDepth:', bookDepthInfo.totalDepth);
+    console.log('BookPreview3D - maxDimension:', maxDimension);
+    console.log('BookPreview3D - pattern:', pattern.length, 'pages');
+
     // Position camera to view the book from an angle
     camera.position.set(maxDimension * 1.5, maxDimension * 1.2, maxDimension * 1.5);
     camera.lookAt(0, 0, 0);
@@ -157,23 +161,24 @@ interface BookDepthInfo {
 
 function calculateBookDepth(pattern: PagePattern[], numberOfPages: number): BookDepthInfo {
   const basePageThickness = 0.01; // cm per page
-  const cutDepth = 1; // cm
+  // Extra thickness per folded page (folds add depth to the book)
+  const foldExtraThickness = 0.05; // cm - small addition to keep book reasonable
 
   const pageDepths = new Map<number, number>();
   let currentDepth = 0;
 
   for (let i = 0; i < numberOfPages; i++) {
+    pageDepths.set(i, currentDepth); // Store depth BEFORE page i
+
     const pagePattern = pattern.find(p => p.page === i + 1);
 
     if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
-      // Page with folds: add base thickness + fold depth
-      currentDepth += basePageThickness + cutDepth;
+      // Page with folds: add base thickness + extra for folds
+      currentDepth += basePageThickness + foldExtraThickness;
     } else {
       // Regular page: just base thickness
       currentDepth += basePageThickness;
     }
-
-    pageDepths.set(i + 1, currentDepth);
   }
 
   return {
@@ -208,9 +213,7 @@ function createBook(
   // Create pages with cut and fold patterns
   for (let i = 0; i < numberOfPages; i++) {
     const pagePattern = pattern.find(p => p.page === i + 1);
-    const previousDepth = i === 0 ? 0 : pageDepths.get(i)!;
-    const currentDepth = pageDepths.get(i + 1)!;
-    const zPosition = -totalDepth / 2 + previousDepth;
+    const zPosition = -totalDepth / 2 + pageDepths.get(i)!;
 
     if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
       // Create page with fold zones
