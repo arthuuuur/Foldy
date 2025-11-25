@@ -12,6 +12,8 @@ import {
     FormControl,
     InputLabel,
     InputAdornment,
+    CircularProgress,
+    Alert,
 } from '@mui/material'
 import {
     CloudUploadIcon,
@@ -21,6 +23,7 @@ import {
     ChevronUp,
     X,
 } from 'lucide-react'
+import { GenerateService, type CutMode } from '../../services/generate.service'
 
 export const Route = createFileRoute('/_authenticated/generate')({
     component: RouteComponent,
@@ -33,15 +36,18 @@ function RouteComponent() {
     const [imagePreview, setImagePreview] = useState<string | null>(null)
     const [hasGenerated, setHasGenerated] = useState(false)
     const [isDragging, setIsDragging] = useState(false)
+    const [isGenerating, setIsGenerating] = useState(false)
+    const [generationError, setGenerationError] = useState<string | null>(null)
+    const [generationSuccess, setGenerationSuccess] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const [lastPageNumber, setLastPageNumber] = useState<number | ''>('')
     const [pageHeight, setPageHeight] = useState<number | ''>('')
     const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
-    const [cutMode, setCutMode] = useState('')
+    const [cutMode, setCutMode] = useState<CutMode>('Mode 1')
 
     const acceptedFormats = '.png,.jpg,.jpeg,.svg'
-    const cutModeOptions = ['Mode 1', 'Mode 2', 'Mode 3', 'Auto']
+    const cutModeOptions: CutMode[] = ['Mode 1', 'Mode 2', 'Mode 3', 'Auto']
 
     // Ajouter une classe au body pour les styles spécifiques à cette page
     useEffect(() => {
@@ -101,10 +107,45 @@ function RouteComponent() {
         }
     }
 
-    const handleGenerate = () => {
-        console.log('Generating...')
-        setHasGenerated(true)
-        // Votre logique de génération ici
+    const handleGenerate = async () => {
+        // Réinitialiser les messages
+        setGenerationError(null)
+        setGenerationSuccess(null)
+
+        // Validation
+        if (!uploadedImage) {
+            setGenerationError('Veuillez uploader une image')
+            return
+        }
+
+        if (!cutMode) {
+            setGenerationError('Veuillez sélectionner un mode de cut')
+            return
+        }
+
+        setIsGenerating(true)
+
+        try {
+            const result = await GenerateService.generate({
+                image: uploadedImage,
+                cutMode: cutMode,
+                lastPageNumber: typeof lastPageNumber === 'number' ? lastPageNumber : undefined,
+                pageHeight: typeof pageHeight === 'number' ? pageHeight : undefined,
+                pageHeightUnit: pageHeightUnit,
+            })
+
+            if (result.success) {
+                setHasGenerated(true)
+                setGenerationSuccess(result.message)
+                console.log('Résultat de la génération:', result)
+            } else {
+                setGenerationError(result.message)
+            }
+        } catch (error) {
+            setGenerationError(`Erreur inattendue: ${error}`)
+        } finally {
+            setIsGenerating(false)
+        }
     }
 
     const handleSave = () => {
@@ -425,46 +466,67 @@ function RouteComponent() {
                             p: 2,
                             backgroundColor: '#1e293b',
                             borderTop: '2px solid #334155',
-                            display: { xs: 'flex', md: 'flex' },
+                            display: 'flex',
+                            flexDirection: 'column',
                             gap: 2,
                             zIndex: 10,
                             flexShrink: 0,
                         }}
                     >
-                        <Button
-                            variant="contained"
-                            fullWidth
-                            onClick={handleGenerate}
-                            sx={{
-                                backgroundColor: '#90caf9',
-                                color: '#000000de',
-                                '&:hover': {
-                                    backgroundColor: '#64b5f6',
-                                },
-                            }}
-                        >
-                            Generate
-                        </Button>
-                        <Button
-                            variant="outlined"
-                            fullWidth
-                            onClick={handleSave}
-                            disabled={!hasGenerated}
-                            sx={{
-                                borderColor: hasGenerated ? '#90caf9' : '#475569',
-                                color: hasGenerated ? '#90caf9' : '#64748b',
-                                '&:hover': {
-                                    borderColor: hasGenerated ? '#64b5f6' : '#475569',
-                                    backgroundColor: hasGenerated ? 'rgba(144, 202, 249, 0.1)' : 'transparent',
-                                },
-                                '&.Mui-disabled': {
-                                    borderColor: '#475569',
-                                    color: '#64748b',
-                                },
-                            }}
-                        >
-                            Save
-                        </Button>
+                        {/* Messages d'erreur et de succès */}
+                        {generationError && (
+                            <Alert severity="error" onClose={() => setGenerationError(null)}>
+                                {generationError}
+                            </Alert>
+                        )}
+                        {generationSuccess && (
+                            <Alert severity="success" onClose={() => setGenerationSuccess(null)}>
+                                {generationSuccess}
+                            </Alert>
+                        )}
+
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                            <Button
+                                variant="contained"
+                                fullWidth
+                                onClick={handleGenerate}
+                                disabled={isGenerating}
+                                startIcon={isGenerating ? <CircularProgress size={20} /> : null}
+                                sx={{
+                                    backgroundColor: '#90caf9',
+                                    color: '#000000de',
+                                    '&:hover': {
+                                        backgroundColor: '#64b5f6',
+                                    },
+                                    '&.Mui-disabled': {
+                                        backgroundColor: '#475569',
+                                        color: '#64748b',
+                                    },
+                                }}
+                            >
+                                {isGenerating ? 'Génération...' : 'Generate'}
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                fullWidth
+                                onClick={handleSave}
+                                disabled={!hasGenerated || isGenerating}
+                                sx={{
+                                    borderColor: hasGenerated ? '#90caf9' : '#475569',
+                                    color: hasGenerated ? '#90caf9' : '#64748b',
+                                    '&:hover': {
+                                        borderColor: hasGenerated ? '#64b5f6' : '#475569',
+                                        backgroundColor: hasGenerated ? 'rgba(144, 202, 249, 0.1)' : 'transparent',
+                                    },
+                                    '&.Mui-disabled': {
+                                        borderColor: '#475569',
+                                        color: '#64748b',
+                                    },
+                                }}
+                            >
+                                Save
+                            </Button>
+                        </Box>
                     </Box>
                 </Box>
 
