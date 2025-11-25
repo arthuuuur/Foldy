@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { PagePattern, FoldZone } from '../services/cutModes/cutAndFold.service';
+import type { PagePattern } from '../services/cutModes/cutAndFold.service';
 
 interface BookPreview3DProps {
   pattern: PagePattern[];
@@ -60,8 +60,11 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
       1000
     );
 
+    // Calculate book depth with folded pages
+    const bookDepthInfo = calculateBookDepth(pattern, numberOfPages);
+    const maxDimension = Math.max(heightInCm, widthInCm, bookDepthInfo.totalDepth);
+
     // Position camera to view the book from an angle
-    const maxDimension = Math.max(heightInCm, widthInCm, numberOfPages * 0.01);
     camera.position.set(maxDimension * 1.5, maxDimension * 1.2, maxDimension * 1.5);
     camera.lookAt(0, 0, 0);
 
@@ -97,7 +100,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     scene.add(fillLight);
 
     // Create book geometry
-    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages);
+    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, bookDepthInfo);
 
     // Animation loop
     const animate = () => {
@@ -147,15 +150,47 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   );
 };
 
+interface BookDepthInfo {
+  totalDepth: number;
+  pageDepths: Map<number, number>; // page number -> depth at that page
+}
+
+function calculateBookDepth(pattern: PagePattern[], numberOfPages: number): BookDepthInfo {
+  const basePageThickness = 0.01; // cm per page
+  const cutDepth = 1; // cm
+
+  const pageDepths = new Map<number, number>();
+  let currentDepth = 0;
+
+  for (let i = 0; i < numberOfPages; i++) {
+    const pagePattern = pattern.find(p => p.page === i + 1);
+
+    if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
+      // Page with folds: add base thickness + fold depth
+      currentDepth += basePageThickness + cutDepth;
+    } else {
+      // Regular page: just base thickness
+      currentDepth += basePageThickness;
+    }
+
+    pageDepths.set(i + 1, currentDepth);
+  }
+
+  return {
+    totalDepth: currentDepth,
+    pageDepths
+  };
+}
+
 function createBook(
   scene: THREE.Scene,
   pattern: PagePattern[],
   pageHeight: number,
   pageWidth: number,
-  numberOfPages: number
+  numberOfPages: number,
+  bookDepthInfo: BookDepthInfo
 ) {
-  const pageThickness = 0.01; // cm
-  const bookDepth = numberOfPages * pageThickness;
+  const { totalDepth, pageDepths } = bookDepthInfo;
 
   // Create book cover (back)
   const coverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, 0.2);
@@ -165,7 +200,7 @@ function createBook(
     metalness: 0.1,
   });
   const backCover = new THREE.Mesh(coverGeometry, coverMaterial);
-  backCover.position.z = -bookDepth / 2 - 0.1;
+  backCover.position.z = -totalDepth / 2 - 0.1;
   backCover.castShadow = true;
   backCover.receiveShadow = true;
   scene.add(backCover);
@@ -173,20 +208,22 @@ function createBook(
   // Create pages with cut and fold patterns
   for (let i = 0; i < numberOfPages; i++) {
     const pagePattern = pattern.find(p => p.page === i + 1);
-    const zPosition = -bookDepth / 2 + i * pageThickness;
+    const previousDepth = i === 0 ? 0 : pageDepths.get(i)!;
+    const currentDepth = pageDepths.get(i + 1)!;
+    const zPosition = -totalDepth / 2 + previousDepth;
 
     if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
       // Create page with fold zones
-      createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition, pageThickness);
+      createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition);
     } else {
       // Create regular flat page
-      createFlatPage(scene, pageHeight, pageWidth, zPosition, pageThickness);
+      createFlatPage(scene, pageHeight, pageWidth, zPosition, 0.01);
     }
   }
 
   // Create book cover (front)
   const frontCover = backCover.clone();
-  frontCover.position.z = bookDepth / 2 + 0.1;
+  frontCover.position.z = totalDepth / 2 + 0.1;
   scene.add(frontCover);
 }
 
@@ -216,10 +253,10 @@ function createPageWithCutsAndFolds(
   pagePattern: PagePattern,
   pageHeight: number,
   pageWidth: number,
-  zPosition: number,
-  thickness: number
+  zPosition: number
 ) {
   const cutDepth = 1; // 1cm cuts from the edge
+  const thickness = 0.01; // page thickness
 
   // Sort zones by startMark to process them in order
   const sortedZones = [...pagePattern.zones].sort((a, b) => a.startMark - b.startMark);
@@ -234,9 +271,6 @@ function createPageWithCutsAndFolds(
     metalness: 0.0,
     side: THREE.DoubleSide,
   });
-
-  // Create segments of the page
-  // We need to divide the page into horizontal strips based on the fold zones
 
   // Collect all Y positions (from top) where we need to split
   const yPositions: number[] = [0]; // Start at top
@@ -267,44 +301,8 @@ function createPageWithCutsAndFolds(
     const segmentCenterY = pageHeight / 2 - (segmentStartY + segmentHeight / 2);
 
     if (isInFoldZone) {
-      // This segment should be folded 90° toward the interior
-      // Create the main part (from spine to cut line)
-      const mainPartGeometry = new THREE.BoxGeometry(
-        pageWidth - cutDepth,
-        segmentHeight,
-        thickness
-      );
-      const mainPart = new THREE.Mesh(mainPartGeometry, material);
-      mainPart.position.set(
-        cutDepth / 2, // Shift right to leave space on the left (outer edge)
-        segmentCenterY,
-        0
-      );
-      mainPart.castShadow = true;
-      mainPart.receiveShadow = true;
-      pageGroup.add(mainPart);
-
-      // Create the folded part (90° fold toward interior/back of book)
-      const foldedPartGeometry = new THREE.BoxGeometry(
-        thickness,
-        segmentHeight,
-        cutDepth
-      );
-      const foldedPart = new THREE.Mesh(foldedPartGeometry, material);
-      foldedPart.position.set(
-        -pageWidth / 2 + cutDepth / 2, // At the left edge (outer edge)
-        segmentCenterY,
-        cutDepth / 2 // Folded toward the front (so it's visible)
-      );
-      foldedPart.castShadow = true;
-      foldedPart.receiveShadow = true;
-      pageGroup.add(foldedPart);
-
-      // Add edge lines for better visualization
-      const edgeGeometry = new THREE.EdgesGeometry(foldedPartGeometry);
-      const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x666666, linewidth: 2 });
-      const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-      foldedPart.add(edges);
+      // Create the folded section as a trapezoid shape
+      createFoldedSection(pageGroup, material, pageWidth, segmentHeight, segmentCenterY, cutDepth, thickness);
     } else {
       // Regular segment without fold
       const segmentGeometry = new THREE.BoxGeometry(
@@ -313,11 +311,7 @@ function createPageWithCutsAndFolds(
         thickness
       );
       const segment = new THREE.Mesh(segmentGeometry, material);
-      segment.position.set(
-        0,
-        segmentCenterY,
-        0
-      );
+      segment.position.set(0, segmentCenterY, 0);
       segment.castShadow = true;
       segment.receiveShadow = true;
       pageGroup.add(segment);
@@ -325,4 +319,101 @@ function createPageWithCutsAndFolds(
   }
 
   scene.add(pageGroup);
+}
+
+function createFoldedSection(
+  pageGroup: THREE.Group,
+  material: THREE.MeshStandardMaterial,
+  pageWidth: number,
+  segmentHeight: number,
+  segmentCenterY: number,
+  cutDepth: number,
+  thickness: number
+) {
+  // Create the main part of the page (from spine to cut line)
+  const mainPartGeometry = new THREE.BoxGeometry(
+    pageWidth - cutDepth,
+    segmentHeight,
+    thickness
+  );
+  const mainPart = new THREE.Mesh(mainPartGeometry, material);
+  mainPart.position.set(
+    cutDepth / 2, // Shift right to leave space on the left (outer edge)
+    segmentCenterY,
+    0
+  );
+  mainPart.castShadow = true;
+  mainPart.receiveShadow = true;
+  pageGroup.add(mainPart);
+
+  // Create the folded part as a trapezoid opening outward
+  // This creates the 3D "fan" effect shown in your diagram
+  const foldGeometry = createTrapezoidGeometry(segmentHeight, cutDepth, thickness);
+  const foldedPart = new THREE.Mesh(foldGeometry, material);
+
+  // Position at the outer edge (left side)
+  foldedPart.position.set(
+    -pageWidth / 2 + cutDepth / 2, // At the left edge (outer edge)
+    segmentCenterY,
+    cutDepth / 2 // Slightly forward, but contained
+  );
+
+  foldedPart.castShadow = true;
+  foldedPart.receiveShadow = true;
+  pageGroup.add(foldedPart);
+
+  // Add edge lines for better visualization
+  const edgeGeometry = new THREE.EdgesGeometry(foldGeometry);
+  const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x666666, linewidth: 2 });
+  const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+  foldedPart.add(edges);
+}
+
+function createTrapezoidGeometry(height: number, width: number, depth: number): THREE.BufferGeometry {
+  // Create a custom geometry for the folded part
+  // Top width: width (at the page)
+  // Bottom width: width (at the page)
+  // Opens outward creating a trapezoid shape
+
+  const geometry = new THREE.BufferGeometry();
+
+  const halfHeight = height / 2;
+  const halfWidth = width / 2;
+
+  // Vertices for the trapezoid
+  // The shape opens outward (in Z direction) but stays within bounds
+  const vertices = new Float32Array([
+    // Front face (at the page - narrow)
+    -depth/2, -halfHeight, 0,     // 0: bottom left front
+    -depth/2, halfHeight, 0,      // 1: top left front
+    depth/2, halfHeight, 0,       // 2: top right front
+    depth/2, -halfHeight, 0,      // 3: bottom right front
+
+    // Back face (opens outward - wider)
+    -depth/2, -halfHeight, depth, // 4: bottom left back
+    -depth/2, halfHeight, depth,  // 5: top left back
+    depth/2, halfHeight, depth,   // 6: top right back
+    depth/2, -halfHeight, depth,  // 7: bottom right back
+  ]);
+
+  const indices = [
+    // Front face
+    0, 1, 2,  0, 2, 3,
+    // Back face
+    4, 6, 5,  4, 7, 6,
+    // Top face
+    1, 5, 6,  1, 6, 2,
+    // Bottom face
+    0, 3, 7,  0, 7, 4,
+    // Left face
+    0, 4, 5,  0, 5, 1,
+    // Right face
+    3, 2, 6,  3, 6, 7,
+  ];
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  return geometry;
 }
