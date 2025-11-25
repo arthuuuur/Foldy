@@ -16,6 +16,8 @@ import {
     Alert,
     Slider,
     Typography,
+    ToggleButton,
+    ToggleButtonGroup,
 } from '@mui/material'
 import {
     CloudUploadIcon,
@@ -24,9 +26,12 @@ import {
     ChevronDown,
     ChevronUp,
     X,
+    Box as BoxIcon,
+    Grid as GridIcon,
 } from 'lucide-react'
 import { GenerateService, type CutMode } from '../../services/generate.service'
 import type { PagePattern } from '../../services/cutModes/cutAndFold.service'
+import { BookPreview3D } from '../../components/BookPreview3D'
 
 export const Route = createFileRoute('/_authenticated/generate')({
     component: RouteComponent,
@@ -44,6 +49,7 @@ function RouteComponent() {
     const [generationSuccess, setGenerationSuccess] = useState<string | null>(null)
     const [generatedPattern, setGeneratedPattern] = useState<PagePattern[] | null>(null)
     const [currentPageIndex, setCurrentPageIndex] = useState(0)
+    const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d')
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const [lastPageNumber, setLastPageNumber] = useState<number | ''>('')
@@ -600,12 +606,44 @@ function RouteComponent() {
                             </Box>
                         ) : (
                             // Visualisation du pattern
-                            <Box sx={{ p: 3 }}>
-                                {/* Statistiques globales */}
-                                <Box sx={{ mb: 3, pb: 2, borderBottom: '2px solid #e2e8f0' }}>
-                                    <Typography variant="h5" sx={{ mb: 2, color: '#1e293b', fontWeight: 600 }}>
+                            <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                {/* Toggle entre vue 2D et 3D */}
+                                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Typography variant="h5" sx={{ color: '#1e293b', fontWeight: 600 }}>
                                         Pattern généré
                                     </Typography>
+                                    <ToggleButtonGroup
+                                        value={viewMode}
+                                        exclusive
+                                        onChange={(_, newMode) => newMode && setViewMode(newMode)}
+                                        size="small"
+                                    >
+                                        <ToggleButton value="2d" sx={{ px: 2 }}>
+                                            <GridIcon size={18} style={{ marginRight: '8px' }} />
+                                            Vue 2D
+                                        </ToggleButton>
+                                        <ToggleButton value="3d" sx={{ px: 2 }}>
+                                            <BoxIcon size={18} style={{ marginRight: '8px' }} />
+                                            Vue 3D
+                                        </ToggleButton>
+                                    </ToggleButtonGroup>
+                                </Box>
+
+                                {viewMode === '3d' ? (
+                                    // Vue 3D
+                                    <Box sx={{ flex: 1, minHeight: 0 }}>
+                                        <BookPreview3D
+                                            pattern={generatedPattern}
+                                            pageHeight={typeof pageHeight === 'number' ? pageHeight : 20}
+                                            numberOfPages={typeof lastPageNumber === 'number' ? lastPageNumber : generatedPattern.length}
+                                            unit={pageHeightUnit}
+                                        />
+                                    </Box>
+                                ) : (
+                                    // Vue 2D (existante)
+                                    <Box sx={{ flex: 1, overflowY: 'auto' }}>
+                                {/* Statistiques globales */}
+                                <Box sx={{ mb: 3, pb: 2, borderBottom: '2px solid #e2e8f0' }}>
                                     <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                                         <Box>
                                             <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
@@ -815,6 +853,8 @@ function RouteComponent() {
                                         </Box>
                                     )}
                                 </Box>
+                                    </Box>
+                                )}
                             </Box>
                         )}
                     </Box>
