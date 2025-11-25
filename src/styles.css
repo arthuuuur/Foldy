@@ -49,3 +49,31 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
 }
+
+/* ============================================
+   Page-specific styles - Generate
+   ============================================ */
+/* Desktop : empêche le scroll global sur la page generate */
+@media (min-width: 900px) {
+  body.page-generate,
+  body.page-generate html {
+    overflow: hidden;
+  }
+}
+
+/* Mobile : layout vertical avec scroll normal sur la page generate */
+@media (max-width: 899px) {
+  body.page-generate .layout-container {
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  body.page-generate,
+  body.page-generate html {
+    overflow-y: auto !important;
+    overflow-x: hidden;
+  }
+}

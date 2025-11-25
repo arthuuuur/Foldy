@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useRef, DragEvent } from 'react'
+import { useState, useRef, useEffect, DragEvent } from 'react'
 import {
     Button,
     TextField,
@@ -42,6 +42,14 @@ function RouteComponent() {
 
     const acceptedFormats = '.png,.jpg,.jpeg,.svg'
     const cutModeOptions = ['Mode 1', 'Mode 2', 'Mode 3', 'Auto']
+
+    // Ajouter une classe au body pour les styles spécifiques à cette page
+    useEffect(() => {
+        document.body.classList.add('page-generate')
+        return () => {
+            document.body.classList.remove('page-generate')
+        }
+    }, [])
 
     const handleFileChange = (file: File | null) => {
         if (!file) return
@@ -106,31 +114,6 @@ function RouteComponent() {
 
     return (
         <>
-            {/* Styles spécifiques à la page generate pour gérer l'overflow du layout */}
-            <style>{`
-                /* Desktop : empêche le scroll global, le contenu est dans le layout fixe */
-                @media (min-width: 900px) {
-                    body, html {
-                        overflow: hidden;
-                    }
-                }
-
-                /* Mobile : layout vertical avec scroll normal */
-                @media (max-width: 899px) {
-                    .layout-container {
-                        flex-direction: column !important;
-                        height: auto !important;
-                        min-height: 100vh !important;
-                        max-height: none !important;
-                        overflow-y: visible !important;
-                    }
-
-                    body, html {
-                        overflow-y: auto !important;
-                        overflow-x: hidden;
-                    }
-                }
-            `}</style>
             <div
                 className="relative layout-container"
                 style={{
