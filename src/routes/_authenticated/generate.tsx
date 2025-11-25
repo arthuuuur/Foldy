@@ -106,42 +106,11 @@ function RouteComponent() {
 
     return (
         <>
-            <style>{`
-        @media (max-width: 899px) {
-          .layout-container {
-            flex-direction: column !important;
-            height: auto !important;
-            min-height: 100vh !important;
-            max-height: none !important;
-            overflow-y: visible !important;
-          }
-          body, html {
-            overflow-y: auto !important;
-            overflow-x: hidden;
-          }
-        }
-        @media (min-width: 900px) {
-          body, html {
-            overflow: hidden;
-          }
-        }
-        body {
-          overflow-x: hidden;
-          margin: 0;
-          padding: 0;
-        }
-        html {
-          overflow-x: hidden;
-        }
-        * {
-          box-sizing: border-box;
-        }
-      `}</style>
             <div
                 className="relative layout-container"
                 style={{
-                    height: 'calc(100vh - 64px)',
-                    maxHeight: 'calc(100vh - 64px)',
+                    height: 'calc(100vh - var(--header-height))',
+                    maxHeight: 'calc(100vh - var(--header-height))',
                     display: 'flex',
                     flexDirection: 'row',
                     overflow: 'hidden',
@@ -235,7 +204,7 @@ function RouteComponent() {
                                     type="file"
                                     accept={acceptedFormats}
                                     onChange={handleFileInput}
-                                    style={{ display: 'none' }}
+                                    className="hidden"
                                 />
                                 <Box sx={{ mt: 1, fontSize: '12px', color: '#94a3b8' }}>
                                     ou glissez-déposez un fichier
