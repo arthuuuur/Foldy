@@ -1,4 +1,39 @@
+/* ============================================
+   Tailwind CSS Import
+   ============================================ */
 @import "tailwindcss";
+
+/* ============================================
+   Variables CSS personnalisées
+   ============================================ */
+:root {
+  /* Couleurs du thème */
+  --color-bg-panel: #1e293b;
+  --color-bg-advanced: #0f172a;
+  --color-border: #475569;
+  --color-border-secondary: #334155;
+  --color-text-secondary: #64748b;
+  --color-text-label: #94a3b8;
+  --color-accent: #90caf9;
+  --color-accent-hover: #64b5f6;
+  --color-accent-dark: #1e3a5f;
+
+  /* Hauteur du header */
+  --header-height: 64px;
+}
+
+/* ============================================
+   Reset global & Base styles
+   ============================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+}
 
 body {
   @apply m-0;
@@ -7,9 +42,38 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
+}
+
+/* ============================================
+   Page-specific styles - Generate
+   ============================================ */
+/* Desktop : empêche le scroll global sur la page generate */
+@media (min-width: 900px) {
+  body.page-generate,
+  body.page-generate html {
+    overflow: hidden;
+  }
+}
+
+/* Mobile : layout vertical avec scroll normal sur la page generate */
+@media (max-width: 899px) {
+  body.page-generate .layout-container {
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  body.page-generate,
+  body.page-generate html {
+    overflow-y: auto !important;
+    overflow-x: hidden;
+  }
 }
