@@ -26,6 +26,7 @@ import {
     X,
 } from 'lucide-react'
 import { GenerateService, type CutMode } from '../../services/generate.service'
+import type { PagePattern } from '../../services/cutModes/cutAndFold.service'
 
 export const Route = createFileRoute('/_authenticated/generate')({
     component: RouteComponent,
@@ -41,6 +42,8 @@ function RouteComponent() {
     const [isGenerating, setIsGenerating] = useState(false)
     const [generationError, setGenerationError] = useState<string | null>(null)
     const [generationSuccess, setGenerationSuccess] = useState<string | null>(null)
+    const [generatedPattern, setGeneratedPattern] = useState<PagePattern[] | null>(null)
+    const [currentPageIndex, setCurrentPageIndex] = useState(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const [lastPageNumber, setLastPageNumber] = useState<number | ''>('')
@@ -142,6 +145,12 @@ function RouteComponent() {
                 setHasGenerated(true)
                 setGenerationSuccess(result.message)
                 console.log('Résultat de la génération:', result)
+
+                // Stocker le pattern généré si disponible
+                if (result.cutModeResult?.data?.pattern) {
+                    setGeneratedPattern(result.cutModeResult.data.pattern)
+                    setCurrentPageIndex(0) // Réinitialiser à la première page
+                }
             } else {
                 setGenerationError(result.message)
             }
@@ -572,14 +581,242 @@ function RouteComponent() {
                             border: '2px solid #334155',
                             borderRadius: '8px',
                             backgroundColor: 'white',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#64748b',
                             boxSizing: 'border-box',
+                            overflow: 'auto',
                         }}
                     >
-                        Votre contenu généré apparaîtra ici
+                        {!generatedPattern ? (
+                            // Message par défaut
+                            <Box
+                                sx={{
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#64748b',
+                                }}
+                            >
+                                Votre contenu généré apparaîtra ici
+                            </Box>
+                        ) : (
+                            // Visualisation du pattern
+                            <Box sx={{ p: 3 }}>
+                                {/* Statistiques globales */}
+                                <Box sx={{ mb: 3, pb: 2, borderBottom: '2px solid #e2e8f0' }}>
+                                    <Typography variant="h5" sx={{ mb: 2, color: '#1e293b', fontWeight: 600 }}>
+                                        Pattern généré
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                                                Total Pages
+                                            </Typography>
+                                            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                                {generatedPattern.length}
+                                            </Typography>
+                                        </Box>
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                                                Pages avec contenu
+                                            </Typography>
+                                            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                                {generatedPattern.filter(p => p.hasContent).length}
+                                            </Typography>
+                                        </Box>
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                                                Zones totales
+                                            </Typography>
+                                            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                                {generatedPattern.reduce((sum, p) => sum + p.zones.length, 0)}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                </Box>
+
+                                {/* Grille d'aperçu des pages */}
+                                <Box sx={{ mb: 3 }}>
+                                    <Typography variant="subtitle1" sx={{ mb: 2, color: '#1e293b', fontWeight: 600 }}>
+                                        Aperçu des pages
+                                    </Typography>
+                                    <Box
+                                        sx={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(auto-fill, minmax(60px, 1fr))',
+                                            gap: 1,
+                                            maxHeight: '150px',
+                                            overflowY: 'auto',
+                                            p: 1,
+                                            backgroundColor: '#f8fafc',
+                                            borderRadius: '8px',
+                                        }}
+                                    >
+                                        {generatedPattern.map((page, index) => (
+                                            <Paper
+                                                key={page.page}
+                                                onClick={() => setCurrentPageIndex(index)}
+                                                sx={{
+                                                    p: 1,
+                                                    cursor: 'pointer',
+                                                    backgroundColor: currentPageIndex === index ? '#90caf9' : page.hasContent ? '#e0f2fe' : '#f1f5f9',
+                                                    border: '1px solid',
+                                                    borderColor: currentPageIndex === index ? '#64b5f6' : page.hasContent ? '#bae6fd' : '#cbd5e1',
+                                                    '&:hover': {
+                                                        backgroundColor: currentPageIndex === index ? '#64b5f6' : '#dbeafe',
+                                                    },
+                                                    transition: 'all 0.2s',
+                                                    textAlign: 'center',
+                                                }}
+                                                elevation={currentPageIndex === index ? 3 : 0}
+                                            >
+                                                <Typography
+                                                    variant="caption"
+                                                    sx={{
+                                                        fontWeight: currentPageIndex === index ? 600 : 400,
+                                                        color: currentPageIndex === index ? '#fff' : '#1e293b',
+                                                    }}
+                                                >
+                                                    {page.page}
+                                                </Typography>
+                                                {page.hasContent && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        sx={{
+                                                            display: 'block',
+                                                            fontSize: '10px',
+                                                            color: currentPageIndex === index ? '#fff' : '#64748b',
+                                                        }}
+                                                    >
+                                                        {page.zones.length}z
+                                                    </Typography>
+                                                )}
+                                            </Paper>
+                                        ))}
+                                    </Box>
+                                </Box>
+
+                                {/* Navigation et détails de la page courante */}
+                                <Box sx={{ mb: 2 }}>
+                                    <Box
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            mb: 2,
+                                        }}
+                                    >
+                                        <Typography variant="subtitle1" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                            Page {generatedPattern[currentPageIndex].page}
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
+                                                disabled={currentPageIndex === 0}
+                                                sx={{
+                                                    backgroundColor: '#f1f5f9',
+                                                    '&:hover': { backgroundColor: '#e2e8f0' },
+                                                    '&.Mui-disabled': { backgroundColor: '#f8fafc' },
+                                                }}
+                                            >
+                                                <ChevronLeft size={20} />
+                                            </IconButton>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => setCurrentPageIndex(Math.min(generatedPattern.length - 1, currentPageIndex + 1))}
+                                                disabled={currentPageIndex === generatedPattern.length - 1}
+                                                sx={{
+                                                    backgroundColor: '#f1f5f9',
+                                                    '&:hover': { backgroundColor: '#e2e8f0' },
+                                                    '&.Mui-disabled': { backgroundColor: '#f8fafc' },
+                                                }}
+                                            >
+                                                <ChevronRight size={20} />
+                                            </IconButton>
+                                        </Box>
+                                    </Box>
+
+                                    {generatedPattern[currentPageIndex].hasContent ? (
+                                        <Box>
+                                            <Typography variant="body2" sx={{ mb: 2, color: '#64748b' }}>
+                                                {generatedPattern[currentPageIndex].zones.length} zone(s) de pliage détectée(s)
+                                            </Typography>
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                                {generatedPattern[currentPageIndex].zones.map((zone, zoneIndex) => (
+                                                    <Paper
+                                                        key={zoneIndex}
+                                                        sx={{
+                                                            p: 2,
+                                                            backgroundColor: '#f8fafc',
+                                                            border: '1px solid #e2e8f0',
+                                                        }}
+                                                        elevation={0}
+                                                    >
+                                                        <Typography
+                                                            variant="caption"
+                                                            sx={{
+                                                                display: 'block',
+                                                                mb: 1,
+                                                                color: '#64748b',
+                                                                fontWeight: 600,
+                                                            }}
+                                                        >
+                                                            Zone {zoneIndex + 1}
+                                                        </Typography>
+                                                        <Box
+                                                            sx={{
+                                                                display: 'grid',
+                                                                gridTemplateColumns: 'repeat(3, 1fr)',
+                                                                gap: 2,
+                                                            }}
+                                                        >
+                                                            <Box>
+                                                                <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                                                                    Début
+                                                                </Typography>
+                                                                <Typography variant="body2" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                                                    {zone.startMark} cm
+                                                                </Typography>
+                                                            </Box>
+                                                            <Box>
+                                                                <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                                                                    Fin
+                                                                </Typography>
+                                                                <Typography variant="body2" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                                                    {zone.endMark} cm
+                                                                </Typography>
+                                                            </Box>
+                                                            <Box>
+                                                                <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                                                                    Hauteur
+                                                                </Typography>
+                                                                <Typography variant="body2" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                                                    {zone.height} cm
+                                                                </Typography>
+                                                            </Box>
+                                                        </Box>
+                                                    </Paper>
+                                                ))}
+                                            </Box>
+                                        </Box>
+                                    ) : (
+                                        <Box
+                                            sx={{
+                                                p: 3,
+                                                textAlign: 'center',
+                                                backgroundColor: '#f8fafc',
+                                                borderRadius: '8px',
+                                                border: '1px dashed #cbd5e1',
+                                            }}
+                                        >
+                                            <Typography variant="body2" sx={{ color: '#64748b' }}>
+                                                Aucune zone de pliage détectée sur cette page
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </Box>
+                            </Box>
+                        )}
                     </Box>
                 </Box>
             </div>
