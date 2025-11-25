@@ -43,37 +43,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-  margin: 0;
-  padding: 0;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
-}
-
-/* ============================================
-   Layout responsif - Generate page
-   ============================================ */
-/* Desktop : layout horizontal avec overflow hidden */
-@media (min-width: 900px) {
-  body, html {
-    overflow: hidden;
-  }
-}
-
-/* Mobile : layout vertical avec scroll normal */
-@media (max-width: 899px) {
-  .layout-container {
-    flex-direction: column !important;
-    height: auto !important;
-    min-height: 100vh !important;
-    max-height: none !important;
-    overflow-y: visible !important;
-  }
-
-  body, html {
-    overflow-y: auto !important;
-    overflow-x: hidden;
-  }
 }

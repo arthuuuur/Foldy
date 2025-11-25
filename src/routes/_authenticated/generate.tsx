@@ -106,6 +106,31 @@ function RouteComponent() {
 
     return (
         <>
+            {/* Styles spécifiques à la page generate pour gérer l'overflow du layout */}
+            <style>{`
+                /* Desktop : empêche le scroll global, le contenu est dans le layout fixe */
+                @media (min-width: 900px) {
+                    body, html {
+                        overflow: hidden;
+                    }
+                }
+
+                /* Mobile : layout vertical avec scroll normal */
+                @media (max-width: 899px) {
+                    .layout-container {
+                        flex-direction: column !important;
+                        height: auto !important;
+                        min-height: 100vh !important;
+                        max-height: none !important;
+                        overflow-y: visible !important;
+                    }
+
+                    body, html {
+                        overflow-y: auto !important;
+                        overflow-x: hidden;
+                    }
+                }
+            `}</style>
             <div
                 className="relative layout-container"
                 style={{
