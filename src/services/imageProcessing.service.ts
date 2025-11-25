@@ -38,8 +38,29 @@ export class ImageProcessingService {
           // Dessiner l'image sur le canvas
           ctx.drawImage(img, 0, 0);
 
-          // TODO: Ajouter ici les traitements d'image nécessaires
-          // (redimensionnement, normalisation, etc.)
+          // Conversion en échelle de gris
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+
+          // Parcourir chaque pixel
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];     // Rouge
+            const g = data[i + 1]; // Vert
+            const b = data[i + 2]; // Bleu
+
+            // Formule de luminance (perception humaine)
+            // Les coefficients représentent la sensibilité de l'œil humain aux différentes couleurs
+            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+            // Appliquer la valeur grise à tous les canaux RGB
+            data[i] = gray;     // Rouge
+            data[i + 1] = gray; // Vert
+            data[i + 2] = gray; // Bleu
+            // data[i + 3] est le canal alpha (transparence), on ne le modifie pas
+          }
+
+          // Remettre les données modifiées sur le canvas
+          ctx.putImageData(imageData, 0, 0);
 
           // Convertir en base64
           const processedImage = canvas.toDataURL('image/png');
