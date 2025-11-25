@@ -21,6 +21,7 @@ import {
     ChevronUp,
     X,
 } from 'lucide-react'
+import BookPreview3D, { PatternData } from '../../components/BookPreview3D'
 
 export const Route = createFileRoute('/_authenticated/generate')({
     component: RouteComponent,
@@ -39,6 +40,7 @@ function RouteComponent() {
     const [pageHeight, setPageHeight] = useState<number | ''>('')
     const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
     const [cutMode, setCutMode] = useState('')
+    const [generatedPattern, setGeneratedPattern] = useState<PatternData[] | null>(null)
 
     const acceptedFormats = '.png,.jpg,.jpeg,.svg'
     const cutModeOptions = ['Mode 1', 'Mode 2', 'Mode 3', 'Auto']
@@ -103,8 +105,110 @@ function RouteComponent() {
 
     const handleGenerate = () => {
         console.log('Generating...')
-        setHasGenerated(true)
-        // Votre logique de génération ici
+
+        // Validate inputs
+        if (!uploadedImage) {
+            alert('Please upload an image first')
+            return
+        }
+        if (!lastPageNumber || lastPageNumber <= 0) {
+            alert('Please enter a valid last page number')
+            return
+        }
+        if (!pageHeight || pageHeight <= 0) {
+            alert('Please enter a valid page height')
+            return
+        }
+
+        // Convert page height to mm
+        const pageHeightMm = pageHeightUnit === 'cm' ? pageHeight * 10 : pageHeight * 25.4
+
+        // Generate pattern from image
+        generatePatternFromImage(uploadedImage, lastPageNumber, pageHeightMm)
+    }
+
+    const generatePatternFromImage = async (
+        image: File,
+        numPages: number,
+        pageHeightMm: number
+    ) => {
+        try {
+            // Create a canvas to analyze the image
+            const img = new Image()
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+
+            if (!ctx) return
+
+            img.onload = () => {
+                // Set canvas size to match the number of pages (width) and analyze height
+                const targetWidth = numPages
+                const targetHeight = 100 // Sample height for analysis
+
+                canvas.width = targetWidth
+                canvas.height = targetHeight
+
+                // Draw and scale the image
+                ctx.drawImage(img, 0, 0, targetWidth, targetHeight)
+
+                // Get image data
+                const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight)
+                const data = imageData.data
+
+                // Generate pattern based on image brightness
+                const pattern: PatternData[] = []
+
+                for (let x = 0; x < targetWidth; x++) {
+                    // Analyze top and bottom halves of the column
+                    let topBrightness = 0
+                    let bottomBrightness = 0
+
+                    // Sample top half
+                    for (let y = 0; y < targetHeight / 2; y++) {
+                        const idx = (y * targetWidth + x) * 4
+                        const r = data[idx]
+                        const g = data[idx + 1]
+                        const b = data[idx + 2]
+                        topBrightness += (r + g + b) / 3
+                    }
+                    topBrightness /= targetHeight / 2
+
+                    // Sample bottom half
+                    for (let y = targetHeight / 2; y < targetHeight; y++) {
+                        const idx = (y * targetWidth + x) * 4
+                        const r = data[idx]
+                        const g = data[idx + 1]
+                        const b = data[idx + 2]
+                        bottomBrightness += (r + g + b) / 3
+                    }
+                    bottomBrightness /= targetHeight / 2
+
+                    // Convert brightness to fold depth (darker = deeper fold)
+                    // Brightness ranges from 0 (black) to 255 (white)
+                    // We want to invert this so dark areas have deeper folds
+                    const maxFoldDepth = pageHeightMm / 2 - 5 // Leave 5mm margin
+
+                    const topFold = ((255 - topBrightness) / 255) * maxFoldDepth
+                    const bottomFold = ((255 - bottomBrightness) / 255) * maxFoldDepth
+
+                    pattern.push({
+                        pageNumber: x + 1,
+                        topFold: topFold,
+                        bottomFold: bottomFold,
+                        isCut: cutMode !== '' && cutMode !== 'Mode 1', // Cut mode for modes 2, 3, and Auto
+                    })
+                }
+
+                setGeneratedPattern(pattern)
+                setHasGenerated(true)
+                console.log('Pattern generated:', pattern.length, 'pages')
+            }
+
+            img.src = imagePreview || ''
+        } catch (error) {
+            console.error('Error generating pattern:', error)
+            alert('Error generating pattern. Please try again.')
+        }
     }
 
     const handleSave = () => {
@@ -494,9 +598,28 @@ function RouteComponent() {
                             justifyContent: 'center',
                             color: '#64748b',
                             boxSizing: 'border-box',
+                            overflow: 'hidden',
                         }}
                     >
-                        Votre contenu généré apparaîtra ici
+                        {generatedPattern && pageHeight ? (
+                            <BookPreview3D
+                                pattern={generatedPattern}
+                                pageHeight={
+                                    pageHeightUnit === 'cm' ? pageHeight * 10 : pageHeight * 25.4
+                                }
+                                pageWidth={148}
+                            />
+                        ) : (
+                            <Box sx={{ textAlign: 'center', p: 4 }}>
+                                <Box sx={{ fontSize: '18px', mb: 2 }}>
+                                    Votre prévisualisation 3D apparaîtra ici
+                                </Box>
+                                <Box sx={{ fontSize: '14px', color: '#94a3b8' }}>
+                                    Uploadez une image, configurez les paramètres et cliquez sur
+                                    "Generate" pour voir le rendu 3D
+                                </Box>
+                            </Box>
+                        )}
                     </Box>
                 </Box>
             </div>
