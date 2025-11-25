@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { PagePattern } from '../services/cutModes/cutAndFold.service';
+import type { PagePattern, FoldZone } from '../services/cutModes/cutAndFold.service';
 
 interface BookPreview3DProps {
   pattern: PagePattern[];
@@ -19,12 +19,8 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   unit = 'cm',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<{
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    renderer: THREE.WebGLRenderer;
-    controls: OrbitControls;
-  } | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Convert to cm if needed
   const heightInCm = unit === 'in' ? pageHeight * 2.54 : pageHeight;
@@ -35,10 +31,16 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Clean up previous scene
-    if (sceneRef.current) {
-      sceneRef.current.renderer.dispose();
-      sceneRef.current.controls.dispose();
+    // Clean up any existing renderer
+    if (rendererRef.current) {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      rendererRef.current.dispose();
+      if (containerRef.current.contains(rendererRef.current.domElement)) {
+        containerRef.current.removeChild(rendererRef.current.domElement);
+      }
+      rendererRef.current = null;
     }
 
     // Scene setup
@@ -64,6 +66,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     containerRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
 
     // Controls setup
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -92,12 +95,9 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     // Create book geometry
     createBook(scene, pattern, heightInCm, widthInCm, numberOfPages);
 
-    // Store references
-    sceneRef.current = { scene, camera, renderer, controls };
-
     // Animation loop
     const animate = () => {
-      requestAnimationFrame(animate);
+      animationFrameRef.current = requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
     };
@@ -105,22 +105,28 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
 
     // Handle resize
     const handleResize = () => {
-      if (!containerRef.current || !sceneRef.current) return;
+      if (!containerRef.current || !rendererRef.current) return;
       const width = containerRef.current.clientWidth;
       const height = containerRef.current.clientHeight;
-      sceneRef.current.camera.aspect = width / height;
-      sceneRef.current.camera.updateProjectionMatrix();
-      sceneRef.current.renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      rendererRef.current.setSize(width, height);
     };
     window.addEventListener('resize', handleResize);
 
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (sceneRef.current) {
-        sceneRef.current.renderer.dispose();
-        sceneRef.current.controls.dispose();
-        containerRef.current?.removeChild(sceneRef.current.renderer.domElement);
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      controls.dispose();
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        if (containerRef.current && containerRef.current.contains(rendererRef.current.domElement)) {
+          containerRef.current.removeChild(rendererRef.current.domElement);
+        }
+        rendererRef.current = null;
       }
     };
   }, [pattern, heightInCm, widthInCm, numberOfPages]);
@@ -163,7 +169,7 @@ function createBook(
 
     if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
       // Create page with fold zones
-      createPageWithFolds(scene, pagePattern, pageHeight, pageWidth, zPosition, pageThickness);
+      createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition, pageThickness);
     } else {
       // Create regular flat page
       createFlatPage(scene, pageHeight, pageWidth, zPosition, pageThickness);
@@ -197,7 +203,7 @@ function createFlatPage(
   scene.add(page);
 }
 
-function createPageWithFolds(
+function createPageWithCutsAndFolds(
   scene: THREE.Scene,
   pagePattern: PagePattern,
   pageHeight: number,
@@ -205,63 +211,14 @@ function createPageWithFolds(
   zPosition: number,
   thickness: number
 ) {
-  // For pages with fold zones, we'll create a more complex geometry
-  // The page will have cuts and folds represented by displaced geometry
+  const cutDepth = 1; // 1cm cuts from the edge
 
-  const segments = 100; // Resolution for the page geometry
-  const geometry = new THREE.BufferGeometry();
+  // Sort zones by startMark to process them in order
+  const sortedZones = [...pagePattern.zones].sort((a, b) => a.startMark - b.startMark);
 
-  const vertices: number[] = [];
-  const indices: number[] = [];
-  const normals: number[] = [];
-
-  // Calculate fold depths for each zone
-  const foldDepths = pagePattern.zones.map(zone => zone.height * 0.3); // 30% of height as depth
-
-  // Generate vertices
-  for (let y = 0; y <= segments; y++) {
-    for (let x = 0; x <= segments; x++) {
-      const xPos = (x / segments - 0.5) * pageWidth;
-      const yPos = (y / segments - 0.5) * pageHeight;
-
-      // Calculate Z displacement based on fold zones
-      let zOffset = 0;
-      const yFromTop = pageHeight / 2 - yPos; // Distance from top in cm
-
-      for (let i = 0; i < pagePattern.zones.length; i++) {
-        const zone = pagePattern.zones[i];
-        const foldDepth = foldDepths[i];
-
-        // Check if this point is within a fold zone
-        if (yFromTop >= zone.startMark && yFromTop <= zone.endMark) {
-          // Create a fold effect - paper goes inward
-          const normalizedY = (yFromTop - zone.startMark) / (zone.endMark - zone.startMark);
-          // Sine wave creates a smooth fold
-          zOffset = Math.sin(normalizedY * Math.PI) * foldDepth;
-        }
-      }
-
-      vertices.push(xPos, yPos, zOffset);
-      normals.push(0, 0, 1); // Will be recalculated
-    }
-  }
-
-  // Generate indices
-  for (let y = 0; y < segments; y++) {
-    for (let x = 0; x < segments; x++) {
-      const a = y * (segments + 1) + x;
-      const b = a + segments + 1;
-      const c = a + 1;
-      const d = b + 1;
-
-      indices.push(a, b, c);
-      indices.push(b, d, c);
-    }
-  }
-
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals(); // Compute proper normals for lighting
+  // Create a group for this page
+  const pageGroup = new THREE.Group();
+  pageGroup.position.z = zPosition;
 
   const material = new THREE.MeshStandardMaterial({
     color: 0xfaf8f3,
@@ -270,15 +227,94 @@ function createPageWithFolds(
     side: THREE.DoubleSide,
   });
 
-  const page = new THREE.Mesh(geometry, material);
-  page.position.z = zPosition;
-  page.castShadow = true;
-  page.receiveShadow = true;
-  scene.add(page);
+  // Create segments of the page
+  // We need to divide the page into horizontal strips based on the fold zones
 
-  // Add edge lines for better visualization of folds
-  const edgesGeometry = new THREE.EdgesGeometry(geometry, 15); // 15 degree threshold
-  const edgesMaterial = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 1 });
-  const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
-  page.add(edges);
+  // Collect all Y positions (from top) where we need to split
+  const yPositions: number[] = [0]; // Start at top
+
+  for (const zone of sortedZones) {
+    if (!yPositions.includes(zone.startMark)) {
+      yPositions.push(zone.startMark);
+    }
+    if (!yPositions.includes(zone.endMark)) {
+      yPositions.push(zone.endMark);
+    }
+  }
+  yPositions.push(pageHeight); // End at bottom
+  yPositions.sort((a, b) => a - b);
+
+  // Create each segment
+  for (let i = 0; i < yPositions.length - 1; i++) {
+    const segmentStartY = yPositions[i];
+    const segmentEndY = yPositions[i + 1];
+    const segmentHeight = segmentEndY - segmentStartY;
+
+    // Check if this segment is part of a fold zone
+    const isInFoldZone = sortedZones.some(
+      zone => segmentStartY >= zone.startMark && segmentEndY <= zone.endMark
+    );
+
+    // Calculate Y position (convert from top-down measurement to center-based)
+    const segmentCenterY = pageHeight / 2 - (segmentStartY + segmentHeight / 2);
+
+    if (isInFoldZone) {
+      // This segment should be folded 90° toward the interior
+      // Create the main part (from edge to cut line)
+      const mainPartGeometry = new THREE.BoxGeometry(
+        pageWidth - cutDepth,
+        segmentHeight,
+        thickness
+      );
+      const mainPart = new THREE.Mesh(mainPartGeometry, material);
+      mainPart.position.set(
+        -cutDepth / 2, // Shift left to leave space on the right
+        segmentCenterY,
+        0
+      );
+      mainPart.castShadow = true;
+      mainPart.receiveShadow = true;
+      pageGroup.add(mainPart);
+
+      // Create the folded part (90° fold toward interior)
+      const foldedPartGeometry = new THREE.BoxGeometry(
+        thickness,
+        segmentHeight,
+        cutDepth
+      );
+      const foldedPart = new THREE.Mesh(foldedPartGeometry, material);
+      foldedPart.position.set(
+        pageWidth / 2 - cutDepth / 2, // At the right edge
+        segmentCenterY,
+        -cutDepth / 2 // Folded toward the back (interior)
+      );
+      foldedPart.castShadow = true;
+      foldedPart.receiveShadow = true;
+      pageGroup.add(foldedPart);
+
+      // Add edge lines for better visualization
+      const edgeGeometry = new THREE.EdgesGeometry(foldedPartGeometry);
+      const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x666666, linewidth: 2 });
+      const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+      foldedPart.add(edges);
+    } else {
+      // Regular segment without fold
+      const segmentGeometry = new THREE.BoxGeometry(
+        pageWidth,
+        segmentHeight,
+        thickness
+      );
+      const segment = new THREE.Mesh(segmentGeometry, material);
+      segment.position.set(
+        0,
+        segmentCenterY,
+        0
+      );
+      segment.castShadow = true;
+      segment.receiveShadow = true;
+      pageGroup.add(segment);
+    }
+  }
+
+  scene.add(pageGroup);
 }
