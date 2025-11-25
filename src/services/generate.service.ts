@@ -7,10 +7,10 @@ import { ImageProcessingService, ImageProcessingResult } from './imageProcessing
 import { Mode1Service } from './cutModes/mode1.service';
 import { Mode2Service } from './cutModes/mode2.service';
 import { Mode3Service } from './cutModes/mode3.service';
-import { AutoService } from './cutModes/auto.service';
+import { CutAndFoldService } from './cutModes/cutAndFold.service';
 import type { CutModeParams, CutModeResult } from './cutModes/mode1.service';
 
-export type CutMode = 'Mode 1' | 'Mode 2' | 'Mode 3' | 'Auto';
+export type CutMode = 'Mode 1' | 'Mode 2' | 'Mode 3' | 'Cut and Fold';
 
 export interface GenerateParams {
   image: File;
@@ -18,6 +18,7 @@ export interface GenerateParams {
   lastPageNumber?: number;
   pageHeight?: number;
   pageHeightUnit?: 'cm' | 'in';
+  threshold?: number;
 }
 
 export interface GenerateResult {
@@ -45,6 +46,7 @@ export class GenerateService {
         lastPageNumber: params.lastPageNumber,
         pageHeight: params.pageHeight,
         pageHeightUnit: params.pageHeightUnit,
+        threshold: params.threshold,
       };
 
       let cutModeResult: CutModeResult;
@@ -59,8 +61,8 @@ export class GenerateService {
         case 'Mode 3':
           cutModeResult = await Mode3Service.execute(imageProcessingResult, cutModeParams);
           break;
-        case 'Auto':
-          cutModeResult = await AutoService.execute(imageProcessingResult, cutModeParams);
+        case 'Cut and Fold':
+          cutModeResult = await CutAndFoldService.execute(imageProcessingResult, cutModeParams);
           break;
         default:
           throw new Error(`Mode de cut inconnu: ${params.cutMode}`);

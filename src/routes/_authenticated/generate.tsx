@@ -14,6 +14,8 @@ import {
     InputAdornment,
     CircularProgress,
     Alert,
+    Slider,
+    Typography,
 } from '@mui/material'
 import {
     CloudUploadIcon,
@@ -44,10 +46,11 @@ function RouteComponent() {
     const [lastPageNumber, setLastPageNumber] = useState<number | ''>('')
     const [pageHeight, setPageHeight] = useState<number | ''>('')
     const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
-    const [cutMode, setCutMode] = useState<CutMode>('Mode 1')
+    const [cutMode, setCutMode] = useState<CutMode>('Cut and Fold')
+    const [threshold, setThreshold] = useState<number>(128)
 
     const acceptedFormats = '.png,.jpg,.jpeg,.svg'
-    const cutModeOptions: CutMode[] = ['Mode 1', 'Mode 2', 'Mode 3', 'Auto']
+    const cutModeOptions: CutMode[] = ['Mode 1', 'Mode 2', 'Mode 3', 'Cut and Fold']
 
     // Ajouter une classe au body pour les styles spécifiques à cette page
     useEffect(() => {
@@ -132,6 +135,7 @@ function RouteComponent() {
                 lastPageNumber: typeof lastPageNumber === 'number' ? lastPageNumber : undefined,
                 pageHeight: typeof pageHeight === 'number' ? pageHeight : undefined,
                 pageHeightUnit: pageHeightUnit,
+                threshold: threshold,
             })
 
             if (result.success) {
@@ -425,32 +429,49 @@ function RouteComponent() {
                                         border: '1px solid #334155',
                                     }}
                                 >
-                                    {/* Ajoutez vos paramètres avancés ici */}
-                                    <TextField
-                                        label="Paramètre 1"
-                                        fullWidth
-                                        size="small"
-                                        sx={{
-                                            mb: 2,
-                                            '& .MuiInputLabel-root': { color: '#94a3b8' },
-                                            '& .MuiOutlinedInput-root': {
-                                                color: 'white',
-                                                '& fieldset': { borderColor: '#475569' },
-                                            },
-                                        }}
-                                    />
-                                    <TextField
-                                        label="Paramètre 2"
-                                        fullWidth
-                                        size="small"
-                                        sx={{
-                                            '& .MuiInputLabel-root': { color: '#94a3b8' },
-                                            '& .MuiOutlinedInput-root': {
-                                                color: 'white',
-                                                '& fieldset': { borderColor: '#475569' },
-                                            },
-                                        }}
-                                    />
+                                    {/* Threshold Slider */}
+                                    <Box sx={{ mb: 2 }}>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{ color: '#94a3b8', mb: 1 }}
+                                        >
+                                            Threshold: {threshold}
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                            <Typography variant="caption" sx={{ color: '#64748b' }}>
+                                                0
+                                            </Typography>
+                                            <Slider
+                                                value={threshold}
+                                                onChange={(_, value) => setThreshold(value as number)}
+                                                min={0}
+                                                max={255}
+                                                valueLabelDisplay="auto"
+                                                sx={{
+                                                    flex: 1,
+                                                    color: '#90caf9',
+                                                    '& .MuiSlider-thumb': {
+                                                        backgroundColor: '#90caf9',
+                                                    },
+                                                    '& .MuiSlider-track': {
+                                                        backgroundColor: '#90caf9',
+                                                    },
+                                                    '& .MuiSlider-rail': {
+                                                        backgroundColor: '#475569',
+                                                    },
+                                                }}
+                                            />
+                                            <Typography variant="caption" sx={{ color: '#64748b' }}>
+                                                255
+                                            </Typography>
+                                        </Box>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{ color: '#64748b', display: 'block', mt: 0.5 }}
+                                        >
+                                            Seuil de détection des zones sombres (pixels &lt; threshold)
+                                        </Typography>
+                                    </Box>
                                 </Paper>
                             </Collapse>
                         </Box>
