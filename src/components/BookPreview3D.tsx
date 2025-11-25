@@ -19,8 +19,11 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   unit = 'cm',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const sceneRef = useRef<{
+    renderer: THREE.WebGLRenderer;
+    controls: OrbitControls;
+    animationId: number;
+  } | null>(null);
 
   // Convert to cm if needed
   const heightInCm = unit === 'in' ? pageHeight * 2.54 : pageHeight;
@@ -31,16 +34,18 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Clean up any existing renderer
-    if (rendererRef.current) {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      rendererRef.current.dispose();
-      if (containerRef.current.contains(rendererRef.current.domElement)) {
-        containerRef.current.removeChild(rendererRef.current.domElement);
-      }
-      rendererRef.current = null;
+    const container = containerRef.current;
+
+    // Clean up any existing scene
+    if (sceneRef.current) {
+      cancelAnimationFrame(sceneRef.current.animationId);
+      sceneRef.current.controls.dispose();
+      sceneRef.current.renderer.dispose();
+    }
+
+    // Remove all existing children from container
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
     }
 
     // Scene setup
@@ -50,7 +55,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     // Camera setup
     const camera = new THREE.PerspectiveCamera(
       50,
-      containerRef.current.clientWidth / containerRef.current.clientHeight,
+      container.clientWidth / container.clientHeight,
       0.1,
       1000
     );
@@ -62,11 +67,10 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
 
     // Renderer setup
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    containerRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+    container.appendChild(renderer.domElement);
 
     // Controls setup
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -97,36 +101,40 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
 
     // Animation loop
     const animate = () => {
-      animationFrameRef.current = requestAnimationFrame(animate);
+      const animationId = requestAnimationFrame(animate);
+      if (sceneRef.current) {
+        sceneRef.current.animationId = animationId;
+      }
       controls.update();
       renderer.render(scene, camera);
     };
-    animate();
+
+    const animationId = requestAnimationFrame(animate);
+    sceneRef.current = { renderer, controls, animationId };
 
     // Handle resize
     const handleResize = () => {
-      if (!containerRef.current || !rendererRef.current) return;
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
+      if (!container || !sceneRef.current) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      rendererRef.current.setSize(width, height);
+      sceneRef.current.renderer.setSize(width, height);
     };
     window.addEventListener('resize', handleResize);
 
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
+      if (sceneRef.current) {
+        cancelAnimationFrame(sceneRef.current.animationId);
+        sceneRef.current.controls.dispose();
+        sceneRef.current.renderer.dispose();
+        sceneRef.current = null;
       }
-      controls.dispose();
-      if (rendererRef.current) {
-        rendererRef.current.dispose();
-        if (containerRef.current && containerRef.current.contains(rendererRef.current.domElement)) {
-          containerRef.current.removeChild(rendererRef.current.domElement);
-        }
-        rendererRef.current = null;
+      // Remove all children from container
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
       }
     };
   }, [pattern, heightInCm, widthInCm, numberOfPages]);
@@ -260,7 +268,7 @@ function createPageWithCutsAndFolds(
 
     if (isInFoldZone) {
       // This segment should be folded 90° toward the interior
-      // Create the main part (from edge to cut line)
+      // Create the main part (from spine to cut line)
       const mainPartGeometry = new THREE.BoxGeometry(
         pageWidth - cutDepth,
         segmentHeight,
@@ -268,7 +276,7 @@ function createPageWithCutsAndFolds(
       );
       const mainPart = new THREE.Mesh(mainPartGeometry, material);
       mainPart.position.set(
-        -cutDepth / 2, // Shift left to leave space on the right
+        cutDepth / 2, // Shift right to leave space on the left (outer edge)
         segmentCenterY,
         0
       );
@@ -276,7 +284,7 @@ function createPageWithCutsAndFolds(
       mainPart.receiveShadow = true;
       pageGroup.add(mainPart);
 
-      // Create the folded part (90° fold toward interior)
+      // Create the folded part (90° fold toward interior/back of book)
       const foldedPartGeometry = new THREE.BoxGeometry(
         thickness,
         segmentHeight,
@@ -284,9 +292,9 @@ function createPageWithCutsAndFolds(
       );
       const foldedPart = new THREE.Mesh(foldedPartGeometry, material);
       foldedPart.position.set(
-        pageWidth / 2 - cutDepth / 2, // At the right edge
+        -pageWidth / 2 + cutDepth / 2, // At the left edge (outer edge)
         segmentCenterY,
-        -cutDepth / 2 // Folded toward the back (interior)
+        cutDepth / 2 // Folded toward the front (so it's visible)
       );
       foldedPart.castShadow = true;
       foldedPart.receiveShadow = true;
