@@ -372,7 +372,7 @@ function createFoldedSection(
   );
   const mainPart = new THREE.Mesh(mainPartGeometry, material);
   mainPart.position.set(
-    cutDepth / 2, // Shift right to leave space on the left (outer edge)
+    -cutDepth / 2, // Shift left to leave space on the right (outer edge)
     segmentCenterY,
     0
   );
@@ -385,9 +385,9 @@ function createFoldedSection(
   const foldGeometry = createTrapezoidGeometry(segmentHeight, cutDepth, thickness);
   const foldedPart = new THREE.Mesh(foldGeometry, material);
 
-  // Position at the outer edge (left side)
+  // Position at the outer edge (right side, opposite of spine)
   foldedPart.position.set(
-    -pageWidth / 2 + cutDepth / 2, // At the left edge (outer edge)
+    pageWidth / 2 - cutDepth / 2, // At the right edge (outer edge, opposite of spine)
     segmentCenterY,
     cutDepth / 2 // Slightly forward, but contained
   );
