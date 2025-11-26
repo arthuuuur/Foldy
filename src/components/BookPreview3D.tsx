@@ -66,8 +66,10 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     // Use fixed book depth
     const maxDimension = Math.max(heightInCm, widthInCm, depthInCm);
 
-    // Position camera to view the book from an angle
-    camera.position.set(maxDimension * 1.5, maxDimension * 1, maxDimension * 2);
+    // Position camera to view the book from front-right angle
+    // Book orientation: Width (X), Height (Y), Depth/Thickness (Z)
+    // Spine is on the left side (-X)
+    camera.position.set(maxDimension * 1.5, maxDimension * 0.8, maxDimension * 2);
     camera.lookAt(0, 0, 0);
 
     // Renderer setup
@@ -160,6 +162,13 @@ function createBook(
   numberOfPages: number,
   totalDepth: number
 ) {
+  console.log('🔍 Book dimensions:', {
+    'Width (X-axis)': pageWidth + 'cm',
+    'Height (Y-axis)': pageHeight + 'cm',
+    'Depth/Thickness (Z-axis)': totalDepth + 'cm',
+    'Number of pages': numberOfPages
+  });
+
   // Distribute pages evenly across the book depth
   const pageDepths = new Map<number, number>();
   for (let i = 0; i < numberOfPages; i++) {
@@ -181,15 +190,15 @@ function createBook(
   backCover.receiveShadow = true;
   scene.add(backCover);
 
-  // Create spine (reliure)
-  const spineGeometry = new THREE.BoxGeometry(pageWidth, 0.5, totalDepth + coverThickness * 2);
+  // Create spine (reliure) - on the LEFT side of the book
+  const spineGeometry = new THREE.BoxGeometry(0.5, pageHeight, totalDepth + coverThickness * 2);
   const spineMaterial = new THREE.MeshStandardMaterial({
     color: 0x1a0f08,
     roughness: 0.9,
     metalness: 0.1,
   });
   const spine = new THREE.Mesh(spineGeometry, spineMaterial);
-  spine.position.set(0, pageHeight / 2 + 0.25, 0);
+  spine.position.set(-pageWidth / 2 - 0.25, 0, 0);
   spine.castShadow = true;
   spine.receiveShadow = true;
   scene.add(spine);
@@ -210,18 +219,28 @@ function createBook(
       }
     }
   } else {
-    // Preview mode: just show the pages as a solid block
-    const pagesGeometry = new THREE.BoxGeometry(pageWidth, pageHeight - 0.5, totalDepth);
-    const pagesMaterial = new THREE.MeshStandardMaterial({
+    // Preview mode: show individual pages to visualize page count
+    const pageThickness = totalDepth / numberOfPages;
+    const pageGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, pageThickness * 0.8);
+    const pageMaterial = new THREE.MeshStandardMaterial({
       color: 0xfaf8f3,
       roughness: 0.9,
       metalness: 0.0,
     });
-    const pagesBlock = new THREE.Mesh(pagesGeometry, pagesMaterial);
-    pagesBlock.position.set(0, -0.25, 0);
-    pagesBlock.castShadow = true;
-    pagesBlock.receiveShadow = true;
-    scene.add(pagesBlock);
+
+    // Create a subset of pages to show (don't render all 300 for performance)
+    const pagesToShow = Math.min(numberOfPages, 50);
+    const pageStep = numberOfPages / pagesToShow;
+
+    for (let i = 0; i < pagesToShow; i++) {
+      const pageIndex = Math.floor(i * pageStep);
+      const zPos = -totalDepth / 2 + pageDepths.get(pageIndex)!;
+      const page = new THREE.Mesh(pageGeometry, pageMaterial);
+      page.position.set(0, 0, zPos);
+      page.castShadow = true;
+      page.receiveShadow = true;
+      scene.add(page);
+    }
   }
 
   // Create book cover (front)
