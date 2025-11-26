@@ -173,15 +173,56 @@ function createBook(
     'Number of pages': numberOfPages
   });
 
-  // Distribute pages evenly across the book depth
-  const pageDepths = new Map<number, number>();
-  for (let i = 0; i < numberOfPages; i++) {
-    pageDepths.set(i, (i / numberOfPages) * totalDepth);
+  // Calculate realistic page thickness including fold effect
+  const basePageThickness = 0.01; // cm per page without folds
+  const foldThicknessFactor = 0.015; // cm added per cm of fold height
+
+  const pageThicknesses = new Map<number, number>();
+  let totalRealDepth = 0;
+
+  if (pattern && pattern.length > 0) {
+    // Calculate thickness for each page based on its folds
+    for (let i = 0; i < numberOfPages; i++) {
+      const pagePattern = pattern.find(p => p.page === i + 1);
+      let pageThickness = basePageThickness;
+
+      if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
+        // Add extra thickness based on fold zones
+        const totalFoldHeight = pagePattern.zones.reduce((sum, zone) => sum + zone.height, 0);
+        pageThickness += totalFoldHeight * foldThicknessFactor;
+      }
+
+      pageThicknesses.set(i, pageThickness);
+      totalRealDepth += pageThickness;
+    }
+
+    console.log('📊 Realistic thickness:', {
+      'Original depth': totalDepth + 'cm',
+      'Real depth with folds': totalRealDepth.toFixed(2) + 'cm',
+      'Expansion factor': (totalRealDepth / totalDepth).toFixed(2) + 'x'
+    });
+  } else {
+    // Preview mode: uniform thickness
+    for (let i = 0; i < numberOfPages; i++) {
+      pageThicknesses.set(i, basePageThickness);
+      totalRealDepth += basePageThickness;
+    }
   }
+
+  // Calculate cumulative depth for each page (for positioning)
+  const pageDepths = new Map<number, number>();
+  let cumulativeDepth = 0;
+  for (let i = 0; i < numberOfPages; i++) {
+    pageDepths.set(i, cumulativeDepth);
+    cumulativeDepth += pageThicknesses.get(i)!;
+  }
+
+  // Use the real total depth for book structure
+  const effectiveTotalDepth = pattern && pattern.length > 0 ? totalRealDepth : totalDepth;
 
   const coverThickness = 0.3;
 
-  // Create book cover (back)
+  // Create book cover (back) - always at the spine side
   const backCoverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, coverThickness);
   const coverMaterial = new THREE.MeshStandardMaterial({
     color: 0x2c1810,
@@ -189,13 +230,13 @@ function createBook(
     metalness: 0.2,
   });
   const backCover = new THREE.Mesh(backCoverGeometry, coverMaterial);
-  backCover.position.z = -totalDepth / 2 - coverThickness / 2;
+  backCover.position.z = -effectiveTotalDepth / 2 - coverThickness / 2;
   backCover.castShadow = true;
   backCover.receiveShadow = true;
   scene.add(backCover);
 
-  // Create spine (reliure) - on the LEFT side of the book
-  const spineGeometry = new THREE.BoxGeometry(0.5, pageHeight, totalDepth + coverThickness * 2);
+  // Create spine (reliure) - on the LEFT side of the book, adjusted for real depth
+  const spineGeometry = new THREE.BoxGeometry(0.5, pageHeight, effectiveTotalDepth + coverThickness * 2);
   const spineMaterial = new THREE.MeshStandardMaterial({
     color: 0x1a0f08,
     roughness: 0.9,
@@ -213,19 +254,19 @@ function createBook(
     for (let i = 0; i < numberOfPages; i++) {
       const pagePattern = pattern.find(p => p.page === i + 1);
       // Reverse order: page 1 at front (+Z), last page at back (-Z)
-      const zPosition = totalDepth / 2 - pageDepths.get(i)!;
+      const zPosition = effectiveTotalDepth / 2 - pageDepths.get(i)! - pageThicknesses.get(i)! / 2;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
         // Create page with fold zones
-        createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition, cutDepth);
+        createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition, cutDepth, pageThicknesses.get(i)!);
       } else {
         // Create regular flat page
-        createFlatPage(scene, pageHeight, pageWidth, zPosition, 0.01);
+        createFlatPage(scene, pageHeight, pageWidth, zPosition, pageThicknesses.get(i)!);
       }
     }
   } else {
     // Preview mode: show all individual pages to visualize page count
-    const pageThickness = totalDepth / numberOfPages;
+    const pageThickness = effectiveTotalDepth / numberOfPages;
 
     console.log('📄 Rendering pages:', {
       'Total pages': numberOfPages,
@@ -242,8 +283,8 @@ function createBook(
 
     // Render all pages for realistic preview
     for (let i = 0; i < numberOfPages; i++) {
-      // Position based on uniform distribution across totalDepth
-      const zPos = -totalDepth / 2 + (i / numberOfPages) * totalDepth + pageThickness / 2;
+      // Position based on uniform distribution across effectiveTotalDepth
+      const zPos = -effectiveTotalDepth / 2 + (i / numberOfPages) * effectiveTotalDepth + pageThickness / 2;
 
       const page = new THREE.Mesh(pageGeometry, pageMaterial);
       page.position.set(0, 0, zPos);
@@ -253,10 +294,10 @@ function createBook(
     }
   }
 
-  // Create book cover (front)
+  // Create book cover (front) - positioned at the outer edge (accounts for fold expansion)
   const frontCoverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, coverThickness);
   const frontCover = new THREE.Mesh(frontCoverGeometry, coverMaterial);
-  frontCover.position.z = totalDepth / 2 + coverThickness / 2;
+  frontCover.position.z = effectiveTotalDepth / 2 + coverThickness / 2;
   frontCover.castShadow = true;
   frontCover.receiveShadow = true;
   scene.add(frontCover);
@@ -289,9 +330,9 @@ function createPageWithCutsAndFolds(
   pageHeight: number,
   pageWidth: number,
   zPosition: number,
-  cutDepth: number
+  cutDepth: number,
+  thickness: number
 ) {
-  const thickness = 0.01; // page thickness
 
   // Sort zones by startMark to process them in order
   const sortedZones = [...pagePattern.zones].sort((a, b) => a.startMark - b.startMark);
