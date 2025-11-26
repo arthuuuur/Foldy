@@ -212,7 +212,8 @@ function createBook(
     // If pattern exists, create pages with folds
     for (let i = 0; i < numberOfPages; i++) {
       const pagePattern = pattern.find(p => p.page === i + 1);
-      const zPosition = -totalDepth / 2 + pageDepths.get(i)!;
+      // Reverse order: page 1 at front (+Z), last page at back (-Z)
+      const zPosition = totalDepth / 2 - pageDepths.get(i)!;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
         // Create page with fold zones
@@ -382,14 +383,15 @@ function createFoldedSection(
 
   // Create the folded part as a trapezoid opening outward
   // This creates the 3D "fan" effect shown in your diagram
-  const foldGeometry = createTrapezoidGeometry(segmentHeight, cutDepth, thickness);
+  // Reduce fold depth to prevent overflow (use 20% of cutDepth)
+  const foldGeometry = createTrapezoidGeometry(segmentHeight, cutDepth, cutDepth * 0.2);
   const foldedPart = new THREE.Mesh(foldGeometry, material);
 
   // Position at the outer edge (right side, opposite of spine)
   foldedPart.position.set(
     pageWidth / 2 - cutDepth / 2, // At the right edge (outer edge, opposite of spine)
     segmentCenterY,
-    cutDepth / 2 // Slightly forward, but contained
+    0 // Keep fold flush with page to prevent overflow
   );
 
   foldedPart.castShadow = true;
