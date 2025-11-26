@@ -217,26 +217,17 @@ function createBook(
     cumulativeDepth += pageThicknesses.get(i)!;
   }
 
-  // Use the real total depth for book structure
-  const effectiveTotalDepth = pattern && pattern.length > 0 ? totalRealDepth : totalDepth;
-
   const coverThickness = 0.3;
 
-  // Create book cover (back) - always at the spine side
-  const backCoverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, coverThickness);
-  const coverMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2c1810,
-    roughness: 0.8,
-    metalness: 0.2,
-  });
-  const backCover = new THREE.Mesh(backCoverGeometry, coverMaterial);
-  backCover.position.z = -effectiveTotalDepth / 2 - coverThickness / 2;
-  backCover.castShadow = true;
-  backCover.receiveShadow = true;
-  scene.add(backCover);
+  // IMPORTANT: Spine stays at original totalDepth - only outer edge expands
+  // Calculate positions at spine (compact) vs outer edge (expanded)
+  const spineDepthPositions = new Map<number, number>();
+  for (let i = 0; i < numberOfPages; i++) {
+    spineDepthPositions.set(i, (i / numberOfPages) * totalDepth);
+  }
 
-  // Create spine (reliure) - on the LEFT side of the book, adjusted for real depth
-  const spineGeometry = new THREE.BoxGeometry(0.5, pageHeight, effectiveTotalDepth + coverThickness * 2);
+  // Create spine (reliure) - on the LEFT side, ALWAYS at original totalDepth
+  const spineGeometry = new THREE.BoxGeometry(0.5, pageHeight, totalDepth + coverThickness * 2);
   const spineMaterial = new THREE.MeshStandardMaterial({
     color: 0x1a0f08,
     roughness: 0.9,
@@ -248,25 +239,58 @@ function createBook(
   spine.receiveShadow = true;
   scene.add(spine);
 
+  // Create book cover (back) - positioned at spine, will be sheared if pattern exists
+  const backCoverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, coverThickness);
+  const coverMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2c1810,
+    roughness: 0.8,
+    metalness: 0.2,
+  });
+  const backCover = new THREE.Mesh(backCoverGeometry, coverMaterial);
+  backCover.position.set(0, 0, -totalDepth / 2 - coverThickness / 2);
+
+  // Apply shear to back cover for trapezoid shape
+  if (pattern && pattern.length > 0 && totalRealDepth > totalDepth) {
+    const backShearZ = (-totalRealDepth / 2) - (-totalDepth / 2);
+    applyShearTransform(backCover, backShearZ, pageWidth);
+  }
+
+  backCover.castShadow = true;
+  backCover.receiveShadow = true;
+  scene.add(backCover);
+
   // Create pages with cut and fold patterns
   if (pattern && pattern.length > 0) {
-    // If pattern exists, create pages with folds
+    // If pattern exists, create pages with folds and apply shear
     for (let i = 0; i < numberOfPages; i++) {
       const pagePattern = pattern.find(p => p.page === i + 1);
-      // Reverse order: page 1 at front (+Z), last page at back (-Z)
-      const zPosition = effectiveTotalDepth / 2 - pageDepths.get(i)! - pageThicknesses.get(i)! / 2;
+
+      // Position at spine (compact, uniform distribution)
+      const zSpine = totalDepth / 2 - spineDepthPositions.get(i)! - (totalDepth / numberOfPages) / 2;
+      // Position at outer edge (expanded due to folds)
+      const zOuter = totalRealDepth / 2 - pageDepths.get(i)! - pageThicknesses.get(i)! / 2;
+      // Shear amount
+      const shearZ = zOuter - zSpine;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
         // Create page with fold zones
-        createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition, cutDepth, pageThicknesses.get(i)!);
+        const pageGroup = createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zSpine, cutDepth, pageThicknesses.get(i)!);
+        // Apply shear transform for trapezoid effect
+        if (Math.abs(shearZ) > 0.001) {
+          applyShearTransformToGroup(pageGroup, shearZ, pageWidth);
+        }
       } else {
         // Create regular flat page
-        createFlatPage(scene, pageHeight, pageWidth, zPosition, pageThicknesses.get(i)!);
+        const page = createFlatPage(scene, pageHeight, pageWidth, zSpine, pageThicknesses.get(i)!);
+        // Apply shear transform for trapezoid effect
+        if (Math.abs(shearZ) > 0.001) {
+          applyShearTransform(page, shearZ, pageWidth);
+        }
       }
     }
   } else {
     // Preview mode: show all individual pages to visualize page count
-    const pageThickness = effectiveTotalDepth / numberOfPages;
+    const pageThickness = totalDepth / numberOfPages;
 
     console.log('📄 Rendering pages:', {
       'Total pages': numberOfPages,
@@ -281,10 +305,10 @@ function createBook(
       metalness: 0.0,
     });
 
-    // Render all pages for realistic preview
+    // Render all pages for realistic preview (no shear in preview mode)
     for (let i = 0; i < numberOfPages; i++) {
-      // Position based on uniform distribution across effectiveTotalDepth
-      const zPos = -effectiveTotalDepth / 2 + (i / numberOfPages) * effectiveTotalDepth + pageThickness / 2;
+      // Position based on uniform distribution across totalDepth
+      const zPos = -totalDepth / 2 + (i / numberOfPages) * totalDepth + pageThickness / 2;
 
       const page = new THREE.Mesh(pageGeometry, pageMaterial);
       page.position.set(0, 0, zPos);
@@ -294,10 +318,17 @@ function createBook(
     }
   }
 
-  // Create book cover (front) - positioned at the outer edge (accounts for fold expansion)
+  // Create book cover (front) - positioned at spine, sheared to match trapezoid
   const frontCoverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, coverThickness);
   const frontCover = new THREE.Mesh(frontCoverGeometry, coverMaterial);
-  frontCover.position.z = effectiveTotalDepth / 2 + coverThickness / 2;
+  frontCover.position.set(0, 0, totalDepth / 2 + coverThickness / 2);
+
+  // Apply shear to front cover for trapezoid shape
+  if (pattern && pattern.length > 0 && totalRealDepth > totalDepth) {
+    const frontShearZ = (totalRealDepth / 2) - (totalDepth / 2);
+    applyShearTransform(frontCover, frontShearZ, pageWidth);
+  }
+
   frontCover.castShadow = true;
   frontCover.receiveShadow = true;
   scene.add(frontCover);
@@ -309,7 +340,7 @@ function createFlatPage(
   pageWidth: number,
   zPosition: number,
   thickness: number
-) {
+): THREE.Mesh {
   const geometry = new THREE.BoxGeometry(pageWidth, pageHeight, thickness);
   const material = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -322,6 +353,7 @@ function createFlatPage(
   page.castShadow = true;
   page.receiveShadow = true;
   scene.add(page);
+  return page;
 }
 
 function createPageWithCutsAndFolds(
@@ -332,7 +364,7 @@ function createPageWithCutsAndFolds(
   zPosition: number,
   cutDepth: number,
   thickness: number
-) {
+): THREE.Group {
 
   // Sort zones by startMark to process them in order
   const sortedZones = [...pagePattern.zones].sort((a, b) => a.startMark - b.startMark);
@@ -395,6 +427,7 @@ function createPageWithCutsAndFolds(
   }
 
   scene.add(pageGroup);
+  return pageGroup;
 }
 
 function createFoldedSection(
@@ -493,4 +526,39 @@ function createTrapezoidGeometry(height: number, width: number, depth: number): 
   geometry.computeVertexNormals();
 
   return geometry;
+}
+
+// Apply shear transformation to create trapezoid effect
+// Spine stays compact, outer edge expands
+function applyShearTransform(mesh: THREE.Mesh, shearZ: number, pageWidth: number) {
+  // Create shear matrix
+  // Left side (X = -pageWidth/2): no shear (stays at spine position)
+  // Right side (X = +pageWidth/2): sheared by shearZ
+  const shearFactor = shearZ / pageWidth;
+
+  // Update geometry to apply shear
+  const geometry = mesh.geometry;
+  const position = geometry.attributes.position;
+
+  for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i);
+    const z = position.getZ(i);
+
+    // Apply shear: newZ = z + (x + pageWidth/2) * shearFactor
+    // This makes left edge (x = -pageWidth/2) stay at z, right edge (x = +pageWidth/2) move by shearZ
+    const newZ = z + (x + pageWidth / 2) * shearFactor;
+    position.setZ(i, newZ);
+  }
+
+  position.needsUpdate = true;
+  geometry.computeBoundingSphere();
+}
+
+// Apply shear transformation to all meshes in a group
+function applyShearTransformToGroup(group: THREE.Group, shearZ: number, pageWidth: number) {
+  group.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      applyShearTransform(child, shearZ, pageWidth);
+    }
+  });
 }
