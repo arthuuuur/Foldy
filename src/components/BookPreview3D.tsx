@@ -220,21 +220,33 @@ function createBook(
     }
   } else {
     // Preview mode: show individual pages to visualize page count
+    // For small page counts (< 100), show each page
+    // For large page counts, show a representative sample
+    const pagesToRender = Math.min(numberOfPages, 100);
     const pageThickness = totalDepth / numberOfPages;
-    const pageGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, pageThickness * 0.8);
+
+    console.log('📄 Rendering pages:', {
+      'Total pages': numberOfPages,
+      'Pages to render': pagesToRender,
+      'Page thickness': pageThickness.toFixed(4) + 'cm',
+      'Total depth': totalDepth + 'cm'
+    });
+
+    const pageGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, pageThickness * 0.9);
     const pageMaterial = new THREE.MeshStandardMaterial({
       color: 0xfaf8f3,
       roughness: 0.9,
       metalness: 0.0,
     });
 
-    // Create a subset of pages to show (don't render all 300 for performance)
-    const pagesToShow = Math.min(numberOfPages, 50);
-    const pageStep = numberOfPages / pagesToShow;
+    // Distribute pages evenly across the full depth
+    for (let i = 0; i < pagesToRender; i++) {
+      // Calculate the actual page index this represents
+      const actualPageIndex = Math.floor((i / pagesToRender) * numberOfPages);
 
-    for (let i = 0; i < pagesToShow; i++) {
-      const pageIndex = Math.floor(i * pageStep);
-      const zPos = -totalDepth / 2 + pageDepths.get(pageIndex)!;
+      // Position based on uniform distribution across totalDepth
+      const zPos = -totalDepth / 2 + (i / pagesToRender) * totalDepth + pageThickness / 2;
+
       const page = new THREE.Mesh(pageGeometry, pageMaterial);
       page.position.set(0, 0, zPos);
       page.castShadow = true;
