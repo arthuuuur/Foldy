@@ -52,8 +52,9 @@ function RouteComponent() {
     const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d')
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const [lastPageNumber, setLastPageNumber] = useState<number | ''>('')
-    const [pageHeight, setPageHeight] = useState<number | ''>('')
+    const [lastPageNumber, setLastPageNumber] = useState<number | ''>(300)
+    const [pageHeight, setPageHeight] = useState<number | ''>(20)
+    const [bookDepth, setBookDepth] = useState<number | ''>(3)
     const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
     const [cutMode, setCutMode] = useState<CutMode>('Cut and Fold')
     const [threshold, setThreshold] = useState<number>(128)
@@ -380,6 +381,32 @@ function RouteComponent() {
                             }}
                         />
 
+                        {/* Book depth */}
+                        <TextField
+                            label="Book depth (spine thickness)"
+                            type="number"
+                            fullWidth
+                            value={bookDepth}
+                            onChange={(e) => setBookDepth(e.target.value === '' ? '' : Number(e.target.value))}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <span style={{ color: '#94a3b8' }}>{pageHeightUnit}</span>
+                                    </InputAdornment>
+                                ),
+                            }}
+                            sx={{
+                                mb: 2,
+                                '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                '& .MuiOutlinedInput-root': {
+                                    color: 'white',
+                                    '& fieldset': { borderColor: '#475569' },
+                                    '&:hover fieldset': { borderColor: '#64748b' },
+                                    '&.Mui-focused fieldset': { borderColor: '#90caf9' },
+                                },
+                            }}
+                        />
+
                         {/* Cut mode */}
                         <FormControl
                             fullWidth
@@ -591,55 +618,44 @@ function RouteComponent() {
                             overflow: 'auto',
                         }}
                     >
-                        {!generatedPattern ? (
-                            // Message par défaut
-                            <Box
-                                sx={{
-                                    height: '100%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#64748b',
-                                }}
-                            >
-                                Votre contenu généré apparaîtra ici
+                        {/* Always show 3D preview */}
+                        <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            {/* Toggle entre vue 2D et 3D - only show if pattern exists */}
+                            {generatedPattern && (
+                            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="h5" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                    Pattern généré
+                                </Typography>
+                                <ToggleButtonGroup
+                                    value={viewMode}
+                                    exclusive
+                                    onChange={(_, newMode) => newMode && setViewMode(newMode)}
+                                    size="small"
+                                >
+                                    <ToggleButton value="2d" sx={{ px: 2 }}>
+                                        <GridIcon size={18} style={{ marginRight: '8px' }} />
+                                        Vue 2D
+                                    </ToggleButton>
+                                    <ToggleButton value="3d" sx={{ px: 2 }}>
+                                        <BoxIcon size={18} style={{ marginRight: '8px' }} />
+                                        Vue 3D
+                                    </ToggleButton>
+                                </ToggleButtonGroup>
                             </Box>
-                        ) : (
-                            // Visualisation du pattern
-                            <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                {/* Toggle entre vue 2D et 3D */}
-                                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Typography variant="h5" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                                        Pattern généré
-                                    </Typography>
-                                    <ToggleButtonGroup
-                                        value={viewMode}
-                                        exclusive
-                                        onChange={(_, newMode) => newMode && setViewMode(newMode)}
-                                        size="small"
-                                    >
-                                        <ToggleButton value="2d" sx={{ px: 2 }}>
-                                            <GridIcon size={18} style={{ marginRight: '8px' }} />
-                                            Vue 2D
-                                        </ToggleButton>
-                                        <ToggleButton value="3d" sx={{ px: 2 }}>
-                                            <BoxIcon size={18} style={{ marginRight: '8px' }} />
-                                            Vue 3D
-                                        </ToggleButton>
-                                    </ToggleButtonGroup>
-                                </Box>
+                            )}
 
-                                {viewMode === '3d' ? (
-                                    // Vue 3D
-                                    <Box sx={{ flex: 1, minHeight: 0 }}>
-                                        <BookPreview3D
-                                            pattern={generatedPattern}
-                                            pageHeight={typeof pageHeight === 'number' ? pageHeight : 20}
-                                            numberOfPages={typeof lastPageNumber === 'number' ? lastPageNumber : generatedPattern.length}
-                                            unit={pageHeightUnit}
-                                        />
-                                    </Box>
-                                ) : (
+                            {!generatedPattern || viewMode === '3d' ? (
+                                // Vue 3D (default or selected)
+                                <Box sx={{ flex: 1, minHeight: 0 }}>
+                                    <BookPreview3D
+                                        pattern={generatedPattern || undefined}
+                                        pageHeight={typeof pageHeight === 'number' ? pageHeight : 20}
+                                        numberOfPages={typeof lastPageNumber === 'number' ? lastPageNumber : 300}
+                                        bookDepth={typeof bookDepth === 'number' ? bookDepth : 3}
+                                        unit={pageHeightUnit}
+                                    />
+                                </Box>
+                            ) : (
                                     // Vue 2D (existante)
                                     <Box sx={{ flex: 1, overflowY: 'auto' }}>
                                 {/* Statistiques globales */}
@@ -854,9 +870,8 @@ function RouteComponent() {
                                     )}
                                 </Box>
                                     </Box>
-                                )}
-                            </Box>
-                        )}
+                            )}
+                        </Box>
                     </Box>
                 </Box>
             </div>

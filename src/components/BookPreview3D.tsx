@@ -4,10 +4,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { PagePattern } from '../services/cutModes/cutAndFold.service';
 
 interface BookPreview3DProps {
-  pattern: PagePattern[];
+  pattern?: PagePattern[]; // Optional - for preview mode without pattern
   pageHeight: number; // in cm
   pageWidth?: number; // in cm, defaults to pageHeight / 1.5
   numberOfPages: number;
+  bookDepth?: number; // in cm, thickness at spine
   unit?: 'cm' | 'in';
 }
 
@@ -16,6 +17,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   pageHeight,
   pageWidth,
   numberOfPages,
+  bookDepth = 3,
   unit = 'cm',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,6 +32,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   const widthInCm = pageWidth
     ? (unit === 'in' ? pageWidth * 2.54 : pageWidth)
     : heightInCm / 1.5;
+  const depthInCm = unit === 'in' ? bookDepth * 2.54 : bookDepth;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -60,16 +63,11 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
       1000
     );
 
-    // Calculate book depth with folded pages
-    const bookDepthInfo = calculateBookDepth(pattern, numberOfPages);
-    const maxDimension = Math.max(heightInCm, widthInCm, bookDepthInfo.totalDepth);
-
-    console.log('BookPreview3D - totalDepth:', bookDepthInfo.totalDepth);
-    console.log('BookPreview3D - maxDimension:', maxDimension);
-    console.log('BookPreview3D - pattern:', pattern.length, 'pages');
+    // Use fixed book depth
+    const maxDimension = Math.max(heightInCm, widthInCm, depthInCm);
 
     // Position camera to view the book from an angle
-    camera.position.set(maxDimension * 1.5, maxDimension * 1.2, maxDimension * 1.5);
+    camera.position.set(maxDimension * 1.5, maxDimension * 1, maxDimension * 2);
     camera.lookAt(0, 0, 0);
 
     // Renderer setup
@@ -104,7 +102,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     scene.add(fillLight);
 
     // Create book geometry
-    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, bookDepthInfo);
+    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, depthInCm);
 
     // Animation loop
     const animate = () => {
@@ -144,7 +142,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
         container.removeChild(container.firstChild);
       }
     };
-  }, [pattern, heightInCm, widthInCm, numberOfPages]);
+  }, [pattern, heightInCm, widthInCm, numberOfPages, depthInCm]);
 
   return (
     <div
@@ -154,79 +152,84 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   );
 };
 
-interface BookDepthInfo {
-  totalDepth: number;
-  pageDepths: Map<number, number>; // page number -> depth at that page
-}
-
-function calculateBookDepth(pattern: PagePattern[], numberOfPages: number): BookDepthInfo {
-  const basePageThickness = 0.01; // cm per page
-  // Extra thickness per folded page (folds add depth to the book)
-  const foldExtraThickness = 0.05; // cm - small addition to keep book reasonable
-
-  const pageDepths = new Map<number, number>();
-  let currentDepth = 0;
-
-  for (let i = 0; i < numberOfPages; i++) {
-    pageDepths.set(i, currentDepth); // Store depth BEFORE page i
-
-    const pagePattern = pattern.find(p => p.page === i + 1);
-
-    if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
-      // Page with folds: add base thickness + extra for folds
-      currentDepth += basePageThickness + foldExtraThickness;
-    } else {
-      // Regular page: just base thickness
-      currentDepth += basePageThickness;
-    }
-  }
-
-  return {
-    totalDepth: currentDepth,
-    pageDepths
-  };
-}
-
 function createBook(
   scene: THREE.Scene,
-  pattern: PagePattern[],
+  pattern: PagePattern[] | undefined,
   pageHeight: number,
   pageWidth: number,
   numberOfPages: number,
-  bookDepthInfo: BookDepthInfo
+  totalDepth: number
 ) {
-  const { totalDepth, pageDepths } = bookDepthInfo;
+  // Distribute pages evenly across the book depth
+  const pageDepths = new Map<number, number>();
+  for (let i = 0; i < numberOfPages; i++) {
+    pageDepths.set(i, (i / numberOfPages) * totalDepth);
+  }
+
+  const coverThickness = 0.3;
 
   // Create book cover (back)
-  const coverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, 0.2);
+  const backCoverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, coverThickness);
   const coverMaterial = new THREE.MeshStandardMaterial({
-    color: 0x8b4513,
-    roughness: 0.7,
-    metalness: 0.1,
+    color: 0x2c1810,
+    roughness: 0.8,
+    metalness: 0.2,
   });
-  const backCover = new THREE.Mesh(coverGeometry, coverMaterial);
-  backCover.position.z = -totalDepth / 2 - 0.1;
+  const backCover = new THREE.Mesh(backCoverGeometry, coverMaterial);
+  backCover.position.z = -totalDepth / 2 - coverThickness / 2;
   backCover.castShadow = true;
   backCover.receiveShadow = true;
   scene.add(backCover);
 
-  // Create pages with cut and fold patterns
-  for (let i = 0; i < numberOfPages; i++) {
-    const pagePattern = pattern.find(p => p.page === i + 1);
-    const zPosition = -totalDepth / 2 + pageDepths.get(i)!;
+  // Create spine (reliure)
+  const spineGeometry = new THREE.BoxGeometry(pageWidth, 0.5, totalDepth + coverThickness * 2);
+  const spineMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1a0f08,
+    roughness: 0.9,
+    metalness: 0.1,
+  });
+  const spine = new THREE.Mesh(spineGeometry, spineMaterial);
+  spine.position.set(0, pageHeight / 2 + 0.25, 0);
+  spine.castShadow = true;
+  spine.receiveShadow = true;
+  scene.add(spine);
 
-    if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
-      // Create page with fold zones
-      createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition);
-    } else {
-      // Create regular flat page
-      createFlatPage(scene, pageHeight, pageWidth, zPosition, 0.01);
+  // Create pages with cut and fold patterns
+  if (pattern && pattern.length > 0) {
+    // If pattern exists, create pages with folds
+    for (let i = 0; i < numberOfPages; i++) {
+      const pagePattern = pattern.find(p => p.page === i + 1);
+      const zPosition = -totalDepth / 2 + pageDepths.get(i)!;
+
+      if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
+        // Create page with fold zones
+        createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition);
+      } else {
+        // Create regular flat page
+        createFlatPage(scene, pageHeight, pageWidth, zPosition, 0.01);
+      }
     }
+  } else {
+    // Preview mode: just show the pages as a solid block
+    const pagesGeometry = new THREE.BoxGeometry(pageWidth, pageHeight - 0.5, totalDepth);
+    const pagesMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfaf8f3,
+      roughness: 0.9,
+      metalness: 0.0,
+    });
+    const pagesBlock = new THREE.Mesh(pagesGeometry, pagesMaterial);
+    pagesBlock.position.set(0, -0.25, 0);
+    pagesBlock.castShadow = true;
+    pagesBlock.receiveShadow = true;
+    scene.add(pagesBlock);
   }
 
   // Create book cover (front)
-  const frontCover = backCover.clone();
-  frontCover.position.z = totalDepth / 2 + 0.1;
+  const frontCoverGeometry = new THREE.BoxGeometry(pageWidth, pageHeight, coverThickness);
+  const frontCover = new THREE.Mesh(frontCoverGeometry, coverMaterial);
+  frontCover.position.z = totalDepth / 2 + coverThickness / 2;
+  frontCover.castShadow = true;
+  frontCover.receiveShadow = true;
   scene.add(frontCover);
 }
 
