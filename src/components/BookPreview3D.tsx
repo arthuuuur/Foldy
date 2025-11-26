@@ -219,15 +219,11 @@ function createBook(
       }
     }
   } else {
-    // Preview mode: show individual pages to visualize page count
-    // For small page counts (< 100), show each page
-    // For large page counts, show a representative sample
-    const pagesToRender = Math.min(numberOfPages, 100);
+    // Preview mode: show all individual pages to visualize page count
     const pageThickness = totalDepth / numberOfPages;
 
     console.log('📄 Rendering pages:', {
       'Total pages': numberOfPages,
-      'Pages to render': pagesToRender,
       'Page thickness': pageThickness.toFixed(4) + 'cm',
       'Total depth': totalDepth + 'cm'
     });
@@ -239,13 +235,10 @@ function createBook(
       metalness: 0.0,
     });
 
-    // Distribute pages evenly across the full depth
-    for (let i = 0; i < pagesToRender; i++) {
-      // Calculate the actual page index this represents
-      const actualPageIndex = Math.floor((i / pagesToRender) * numberOfPages);
-
+    // Render all pages for realistic preview
+    for (let i = 0; i < numberOfPages; i++) {
       // Position based on uniform distribution across totalDepth
-      const zPos = -totalDepth / 2 + (i / pagesToRender) * totalDepth + pageThickness / 2;
+      const zPos = -totalDepth / 2 + (i / numberOfPages) * totalDepth + pageThickness / 2;
 
       const page = new THREE.Mesh(pageGeometry, pageMaterial);
       page.position.set(0, 0, zPos);
