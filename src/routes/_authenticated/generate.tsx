@@ -55,6 +55,7 @@ function RouteComponent() {
     const [lastPageNumber, setLastPageNumber] = useState<number | ''>(300)
     const [pageHeight, setPageHeight] = useState<number | ''>(20)
     const [bookDepth, setBookDepth] = useState<number | ''>(3)
+    const [cutDepth, setCutDepth] = useState<number | ''>(1)
     const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
     const [cutMode, setCutMode] = useState<CutMode>('Cut and Fold')
     const [threshold, setThreshold] = useState<number>(128)
@@ -407,6 +408,32 @@ function RouteComponent() {
                             }}
                         />
 
+                        {/* Cut depth */}
+                        <TextField
+                            label="Cut depth (from edge)"
+                            type="number"
+                            fullWidth
+                            value={cutDepth}
+                            onChange={(e) => setCutDepth(e.target.value === '' ? '' : Number(e.target.value))}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <span style={{ color: '#94a3b8' }}>{pageHeightUnit}</span>
+                                    </InputAdornment>
+                                ),
+                            }}
+                            sx={{
+                                mb: 2,
+                                '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                '& .MuiOutlinedInput-root': {
+                                    color: 'white',
+                                    '& fieldset': { borderColor: '#475569' },
+                                    '&:hover fieldset': { borderColor: '#64748b' },
+                                    '&.Mui-focused fieldset': { borderColor: '#90caf9' },
+                                },
+                            }}
+                        />
+
                         {/* Cut mode */}
                         <FormControl
                             fullWidth
@@ -652,6 +679,7 @@ function RouteComponent() {
                                         pageHeight={typeof pageHeight === 'number' ? pageHeight : 20}
                                         numberOfPages={typeof lastPageNumber === 'number' ? lastPageNumber : 300}
                                         bookDepth={typeof bookDepth === 'number' ? bookDepth : 3}
+                                        cutDepth={typeof cutDepth === 'number' ? cutDepth : 1}
                                         unit={pageHeightUnit}
                                     />
                                 </Box>

@@ -9,6 +9,7 @@ interface BookPreview3DProps {
   pageWidth?: number; // in cm, defaults to pageHeight / 1.5
   numberOfPages: number;
   bookDepth?: number; // in cm, thickness at spine
+  cutDepth?: number; // in cm, depth of cuts from edge (default 1cm)
   unit?: 'cm' | 'in';
 }
 
@@ -18,6 +19,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   pageWidth,
   numberOfPages,
   bookDepth = 3,
+  cutDepth = 1,
   unit = 'cm',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,6 +35,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     ? (unit === 'in' ? pageWidth * 2.54 : pageWidth)
     : heightInCm / 1.5;
   const depthInCm = unit === 'in' ? bookDepth * 2.54 : bookDepth;
+  const cutDepthInCm = unit === 'in' ? cutDepth * 2.54 : cutDepth;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -104,7 +107,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     scene.add(fillLight);
 
     // Create book geometry
-    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, depthInCm);
+    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, depthInCm, cutDepthInCm);
 
     // Animation loop
     const animate = () => {
@@ -160,7 +163,8 @@ function createBook(
   pageHeight: number,
   pageWidth: number,
   numberOfPages: number,
-  totalDepth: number
+  totalDepth: number,
+  cutDepth: number
 ) {
   console.log('🔍 Book dimensions:', {
     'Width (X-axis)': pageWidth + 'cm',
@@ -212,7 +216,7 @@ function createBook(
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
         // Create page with fold zones
-        createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition);
+        createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zPosition, cutDepth);
       } else {
         // Create regular flat page
         createFlatPage(scene, pageHeight, pageWidth, zPosition, 0.01);
@@ -283,9 +287,9 @@ function createPageWithCutsAndFolds(
   pagePattern: PagePattern,
   pageHeight: number,
   pageWidth: number,
-  zPosition: number
+  zPosition: number,
+  cutDepth: number
 ) {
-  const cutDepth = 1; // 1cm cuts from the edge
   const thickness = 0.01; // page thickness
 
   // Sort zones by startMark to process them in order
