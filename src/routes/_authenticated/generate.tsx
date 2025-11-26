@@ -59,6 +59,7 @@ function RouteComponent() {
     const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
     const [cutMode, setCutMode] = useState<CutMode>('Cut and Fold')
     const [threshold, setThreshold] = useState<number>(128)
+    const [precision, setPrecision] = useState<'exact' | '0.1mm' | '0.5mm' | '1mm'>('0.1mm')
 
     const acceptedFormats = '.png,.jpg,.jpeg,.svg'
     const cutModeOptions: CutMode[] = ['Mode 1', 'Mode 2', 'Mode 3', 'Cut and Fold']
@@ -147,6 +148,7 @@ function RouteComponent() {
                 pageHeight: typeof pageHeight === 'number' ? pageHeight : undefined,
                 pageHeightUnit: pageHeightUnit,
                 threshold: threshold,
+                precision: precision,
             })
 
             if (result.success) {
@@ -541,6 +543,39 @@ function RouteComponent() {
                                             Seuil de détection des zones sombres (pixels &lt; threshold)
                                         </Typography>
                                     </Box>
+
+                                    {/* Precision Select */}
+                                    <FormControl
+                                        fullWidth
+                                        sx={{
+                                            mb: 0,
+                                            '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                            '& .MuiOutlinedInput-root': {
+                                                color: 'white',
+                                                '& fieldset': { borderColor: '#475569' },
+                                                '&:hover fieldset': { borderColor: '#64748b' },
+                                                '&.Mui-focused fieldset': { borderColor: '#90caf9' },
+                                            },
+                                        }}
+                                    >
+                                        <InputLabel>Pattern precision</InputLabel>
+                                        <Select
+                                            value={precision}
+                                            label="Pattern precision"
+                                            onChange={(e) => setPrecision(e.target.value as 'exact' | '0.1mm' | '0.5mm' | '1mm')}
+                                        >
+                                            <MenuItem value="exact">Exact (no rounding)</MenuItem>
+                                            <MenuItem value="0.1mm">0.1mm precision</MenuItem>
+                                            <MenuItem value="0.5mm">0.5mm precision</MenuItem>
+                                            <MenuItem value="1mm">1mm precision</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{ color: '#64748b', display: 'block', mt: 0.5 }}
+                                    >
+                                        Rounding precision for pattern values (startMark, endMark, height)
+                                    </Typography>
                                 </Paper>
                             </Collapse>
                         </Box>
