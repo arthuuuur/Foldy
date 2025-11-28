@@ -1,0 +1,13 @@
+services:
+  node:
+    build:
+      dockerfile: ./docker/Dockerfile
+      context: .
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+    ports:
+      - '3000:3000'
+    volumes:
+      - '.:/opt/app'
