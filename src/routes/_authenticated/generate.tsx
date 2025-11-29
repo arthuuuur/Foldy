@@ -16,6 +16,8 @@ import {
     Alert,
     Slider,
     Typography,
+    ToggleButton,
+    ToggleButtonGroup,
 } from '@mui/material'
 import {
     CloudUploadIcon,
@@ -24,9 +26,12 @@ import {
     ChevronDown,
     ChevronUp,
     X,
+    Box as BoxIcon,
+    Grid as GridIcon,
 } from 'lucide-react'
 import { GenerateService, type CutMode } from '../../services/generate.service'
 import type { PagePattern } from '../../services/cutModes/cutAndFold.service'
+import { BookPreview3D } from '../../components/BookPreview3D'
 
 export const Route = createFileRoute('/_authenticated/generate')({
     component: RouteComponent,
@@ -44,13 +49,17 @@ function RouteComponent() {
     const [generationSuccess, setGenerationSuccess] = useState<string | null>(null)
     const [generatedPattern, setGeneratedPattern] = useState<PagePattern[] | null>(null)
     const [currentPageIndex, setCurrentPageIndex] = useState(0)
+    const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d')
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const [lastPageNumber, setLastPageNumber] = useState<number | ''>('')
-    const [pageHeight, setPageHeight] = useState<number | ''>('')
+    const [lastPageNumber, setLastPageNumber] = useState<number | ''>(300)
+    const [pageHeight, setPageHeight] = useState<number | ''>(20)
+    const [bookDepth, setBookDepth] = useState<number | ''>(3)
+    const [cutDepth, setCutDepth] = useState<number | ''>(1)
     const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
     const [cutMode, setCutMode] = useState<CutMode>('Cut and Fold')
     const [threshold, setThreshold] = useState<number>(128)
+    const [precision, setPrecision] = useState<'exact' | '0.1mm' | '0.5mm' | '1mm'>('0.1mm')
 
     const acceptedFormats = '.png,.jpg,.jpeg,.svg'
     const cutModeOptions: CutMode[] = ['Mode 1', 'Mode 2', 'Mode 3', 'Cut and Fold']
@@ -139,6 +148,7 @@ function RouteComponent() {
                 pageHeight: typeof pageHeight === 'number' ? pageHeight : undefined,
                 pageHeightUnit: pageHeightUnit,
                 threshold: threshold,
+                precision: precision,
             })
 
             if (result.success) {
@@ -324,9 +334,11 @@ function RouteComponent() {
                             fullWidth
                             value={lastPageNumber}
                             onChange={(e) => setLastPageNumber(e.target.value === '' ? '' : Number(e.target.value))}
+                            helperText={`${typeof lastPageNumber === 'number' ? Math.ceil(lastPageNumber / 2) : 150} physical pages (2 page numbers per sheet)`}
                             sx={{
                                 mb: 2,
                                 '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                '& .MuiFormHelperText-root': { color: '#64748b' },
                                 '& .MuiOutlinedInput-root': {
                                     color: 'white',
                                     '& fieldset': { borderColor: '#475569' },
@@ -359,6 +371,58 @@ function RouteComponent() {
                                             <MenuItem value="cm">cm</MenuItem>
                                             <MenuItem value="in">in</MenuItem>
                                         </Select>
+                                    </InputAdornment>
+                                ),
+                            }}
+                            sx={{
+                                mb: 2,
+                                '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                '& .MuiOutlinedInput-root': {
+                                    color: 'white',
+                                    '& fieldset': { borderColor: '#475569' },
+                                    '&:hover fieldset': { borderColor: '#64748b' },
+                                    '&.Mui-focused fieldset': { borderColor: '#90caf9' },
+                                },
+                            }}
+                        />
+
+                        {/* Book depth */}
+                        <TextField
+                            label="Book depth (spine thickness)"
+                            type="number"
+                            fullWidth
+                            value={bookDepth}
+                            onChange={(e) => setBookDepth(e.target.value === '' ? '' : Number(e.target.value))}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <span style={{ color: '#94a3b8' }}>{pageHeightUnit}</span>
+                                    </InputAdornment>
+                                ),
+                            }}
+                            sx={{
+                                mb: 2,
+                                '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                '& .MuiOutlinedInput-root': {
+                                    color: 'white',
+                                    '& fieldset': { borderColor: '#475569' },
+                                    '&:hover fieldset': { borderColor: '#64748b' },
+                                    '&.Mui-focused fieldset': { borderColor: '#90caf9' },
+                                },
+                            }}
+                        />
+
+                        {/* Cut depth */}
+                        <TextField
+                            label="Cut depth (from edge)"
+                            type="number"
+                            fullWidth
+                            value={cutDepth}
+                            onChange={(e) => setCutDepth(e.target.value === '' ? '' : Number(e.target.value))}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <span style={{ color: '#94a3b8' }}>{pageHeightUnit}</span>
                                     </InputAdornment>
                                 ),
                             }}
@@ -481,6 +545,39 @@ function RouteComponent() {
                                             Seuil de détection des zones sombres (pixels &lt; threshold)
                                         </Typography>
                                     </Box>
+
+                                    {/* Precision Select */}
+                                    <FormControl
+                                        fullWidth
+                                        sx={{
+                                            mb: 0,
+                                            '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                            '& .MuiOutlinedInput-root': {
+                                                color: 'white',
+                                                '& fieldset': { borderColor: '#475569' },
+                                                '&:hover fieldset': { borderColor: '#64748b' },
+                                                '&.Mui-focused fieldset': { borderColor: '#90caf9' },
+                                            },
+                                        }}
+                                    >
+                                        <InputLabel>Pattern precision</InputLabel>
+                                        <Select
+                                            value={precision}
+                                            label="Pattern precision"
+                                            onChange={(e) => setPrecision(e.target.value as 'exact' | '0.1mm' | '0.5mm' | '1mm')}
+                                        >
+                                            <MenuItem value="exact">Exact (no rounding)</MenuItem>
+                                            <MenuItem value="0.1mm">0.1mm precision</MenuItem>
+                                            <MenuItem value="0.5mm">0.5mm precision</MenuItem>
+                                            <MenuItem value="1mm">1mm precision</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{ color: '#64748b', display: 'block', mt: 0.5 }}
+                                    >
+                                        Rounding precision for pattern values (startMark, endMark, height)
+                                    </Typography>
                                 </Paper>
                             </Collapse>
                         </Box>
@@ -585,27 +682,49 @@ function RouteComponent() {
                             overflow: 'auto',
                         }}
                     >
-                        {!generatedPattern ? (
-                            // Message par défaut
-                            <Box
-                                sx={{
-                                    height: '100%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#64748b',
-                                }}
-                            >
-                                Votre contenu généré apparaîtra ici
+                        {/* Always show 3D preview */}
+                        <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            {/* Toggle entre vue 2D et 3D - only show if pattern exists */}
+                            {generatedPattern && (
+                            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="h5" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                                    Pattern généré
+                                </Typography>
+                                <ToggleButtonGroup
+                                    value={viewMode}
+                                    exclusive
+                                    onChange={(_, newMode) => newMode && setViewMode(newMode)}
+                                    size="small"
+                                >
+                                    <ToggleButton value="2d" sx={{ px: 2 }}>
+                                        <GridIcon size={18} style={{ marginRight: '8px' }} />
+                                        Vue 2D
+                                    </ToggleButton>
+                                    <ToggleButton value="3d" sx={{ px: 2 }}>
+                                        <BoxIcon size={18} style={{ marginRight: '8px' }} />
+                                        Vue 3D
+                                    </ToggleButton>
+                                </ToggleButtonGroup>
                             </Box>
-                        ) : (
-                            // Visualisation du pattern
-                            <Box sx={{ p: 3 }}>
+                            )}
+
+                            {!generatedPattern || viewMode === '3d' ? (
+                                // Vue 3D (default or selected)
+                                <Box sx={{ flex: 1, minHeight: 0 }}>
+                                    <BookPreview3D
+                                        pattern={generatedPattern || undefined}
+                                        pageHeight={typeof pageHeight === 'number' ? pageHeight : 20}
+                                        numberOfPages={typeof lastPageNumber === 'number' ? Math.ceil(lastPageNumber / 2) : 150}
+                                        bookDepth={typeof bookDepth === 'number' ? bookDepth : 3}
+                                        cutDepth={typeof cutDepth === 'number' ? cutDepth : 1}
+                                        unit={pageHeightUnit}
+                                    />
+                                </Box>
+                            ) : (
+                                    // Vue 2D (existante)
+                                    <Box sx={{ flex: 1, overflowY: 'auto' }}>
                                 {/* Statistiques globales */}
                                 <Box sx={{ mb: 3, pb: 2, borderBottom: '2px solid #e2e8f0' }}>
-                                    <Typography variant="h5" sx={{ mb: 2, color: '#1e293b', fontWeight: 600 }}>
-                                        Pattern généré
-                                    </Typography>
                                     <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                                         <Box>
                                             <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
@@ -815,8 +934,9 @@ function RouteComponent() {
                                         </Box>
                                     )}
                                 </Box>
-                            </Box>
-                        )}
+                                    </Box>
+                            )}
+                        </Box>
                     </Box>
                 </Box>
             </div>

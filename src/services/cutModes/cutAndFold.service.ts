@@ -10,6 +10,7 @@ export interface CutModeParams {
   pageHeight?: number;
   pageHeightUnit?: 'cm' | 'in';
   threshold?: number;
+  precision?: 'exact' | '0.1mm' | '0.5mm' | '1mm';
 }
 
 export interface FoldZone {
@@ -36,18 +37,50 @@ export interface CutModeResult {
 
 export class CutAndFoldService {
   /**
+   * Arrondit une valeur selon la précision choisie
+   * @param value - Valeur en cm à arrondir
+   * @param precision - Précision d'arrondi
+   * @returns Valeur arrondie
+   */
+  private static roundValue(value: number, precision: 'exact' | '0.1mm' | '0.5mm' | '1mm'): number {
+    if (precision === 'exact') {
+      return value;
+    }
+
+    // Convertir en mm, arrondir, reconvertir en cm
+    const valueMm = value * 10;
+    let roundedMm: number;
+
+    switch (precision) {
+      case '0.1mm':
+        roundedMm = Math.round(valueMm * 10) / 10;
+        break;
+      case '0.5mm':
+        roundedMm = Math.round(valueMm * 2) / 2;
+        break;
+      case '1mm':
+        roundedMm = Math.round(valueMm);
+        break;
+    }
+
+    return roundedMm / 10; // Reconvertir en cm
+  }
+
+  /**
    * Génère le pattern de pliage basé sur l'analyse de l'image
    * @param imageData - Les données de l'image traitée en niveaux de gris
    * @param bookPages - Nombre de pages du livre
    * @param pageHeight - Hauteur de la page
    * @param threshold - Seuil de détection (0-255)
+   * @param precision - Précision d'arrondi des valeurs
    * @returns Le pattern de pliage pour chaque page
    */
   private static generatePattern(
     imageData: ImageData,
     bookPages: number,
     pageHeight: number,
-    threshold: number
+    threshold: number,
+    precision: 'exact' | '0.1mm' | '0.5mm' | '1mm' = '0.1mm'
   ): PagePattern[] {
     const { width, height, data } = imageData;
     const pattern: PagePattern[] = [];
@@ -99,9 +132,9 @@ export class CutAndFoldService {
           const zoneHeight = endMark - startMark;
 
           zones.push({
-            startMark: Math.round(startMark * 100) / 100, // Arrondir à 2 décimales
-            endMark: Math.round(endMark * 100) / 100,
-            height: Math.round(zoneHeight * 100) / 100,
+            startMark: this.roundValue(startMark, precision),
+            endMark: this.roundValue(endMark, precision),
+            height: this.roundValue(zoneHeight, precision),
           });
 
           inZone = false;
@@ -117,9 +150,9 @@ export class CutAndFoldService {
         const zoneHeight = endMark - startMark;
 
         zones.push({
-          startMark: Math.round(startMark * 100) / 100,
-          endMark: Math.round(endMark * 100) / 100,
-          height: Math.round(zoneHeight * 100) / 100,
+          startMark: this.roundValue(startMark, precision),
+          endMark: this.roundValue(endMark, precision),
+          height: this.roundValue(zoneHeight, precision),
         });
       }
 
@@ -197,11 +230,21 @@ export class CutAndFoldService {
       // Utiliser un threshold par défaut si non spécifié
       const threshold = params.threshold ?? 128;
 
+      // Utiliser une précision par défaut si non spécifiée
+      const precision = params.precision ?? '0.1mm';
+
       // Convertir la hauteur en cm si elle est en inches
       const pageHeightInCm =
         params.pageHeightUnit === 'in'
           ? params.pageHeight * 2.54
           : params.pageHeight;
+
+      // Calculer le nombre de pages physiques
+      // lastPageNumber est le numéro de la dernière page (ex: 10)
+      // Nombre de pages physiques = lastPageNumber / 2 (car chaque page a 2 faces)
+      const physicalPages = Math.ceil(params.lastPageNumber / 2);
+
+      console.log(`📖 Dernière page: ${params.lastPageNumber} → ${physicalPages} pages physiques`);
 
       // Extraire les ImageData depuis l'image base64
       const imgData = await this.getImageData(imageData.processedImage);
@@ -209,16 +252,17 @@ export class CutAndFoldService {
       // Générer le pattern
       const pattern = this.generatePattern(
         imgData,
-        params.lastPageNumber,
+        physicalPages,
         pageHeightInCm,
-        threshold
+        threshold,
+        precision
       );
 
       // Calculer des statistiques
       const pagesWithContent = pattern.filter((p) => p.hasContent).length;
       const totalZones = pattern.reduce((sum, p) => sum + p.zones.length, 0);
 
-      console.log(`Pattern généré: ${pagesWithContent}/${params.lastPageNumber} pages avec contenu, ${totalZones} zones au total`);
+      console.log(`Pattern généré: ${pagesWithContent}/${physicalPages} pages physiques avec contenu, ${totalZones} zones au total`);
 
       return {
         success: true,

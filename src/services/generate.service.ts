@@ -8,7 +8,8 @@ import { Mode1Service } from './cutModes/mode1.service';
 import { Mode2Service } from './cutModes/mode2.service';
 import { Mode3Service } from './cutModes/mode3.service';
 import { CutAndFoldService } from './cutModes/cutAndFold.service';
-import type { CutModeParams, CutModeResult } from './cutModes/mode1.service';
+import type { CutModeParams as Mode1Params, CutModeResult } from './cutModes/mode1.service';
+import type { CutModeParams as CutAndFoldParams } from './cutModes/cutAndFold.service';
 
 export type CutMode = 'Mode 1' | 'Mode 2' | 'Mode 3' | 'Cut and Fold';
 
@@ -19,6 +20,7 @@ export interface GenerateParams {
   pageHeight?: number;
   pageHeightUnit?: 'cm' | 'in';
   threshold?: number;
+  precision?: 'exact' | '0.1mm' | '0.5mm' | '1mm';
 }
 
 export interface GenerateResult {
@@ -42,28 +44,48 @@ export class GenerateService {
 
       // Étape 2: Application du mode de cut sélectionné
       console.log(`Étape 2: Application du ${params.cutMode}...`);
-      const cutModeParams: CutModeParams = {
-        lastPageNumber: params.lastPageNumber,
-        pageHeight: params.pageHeight,
-        pageHeightUnit: params.pageHeightUnit,
-        threshold: params.threshold,
-      };
 
       let cutModeResult: CutModeResult;
 
       switch (params.cutMode) {
-        case 'Mode 1':
-          cutModeResult = await Mode1Service.execute(imageProcessingResult, cutModeParams);
+        case 'Mode 1': {
+          const mode1Params: Mode1Params = {
+            lastPageNumber: params.lastPageNumber,
+            pageHeight: params.pageHeight,
+            pageHeightUnit: params.pageHeightUnit,
+          };
+          cutModeResult = await Mode1Service.execute(imageProcessingResult, mode1Params);
           break;
-        case 'Mode 2':
-          cutModeResult = await Mode2Service.execute(imageProcessingResult, cutModeParams);
+        }
+        case 'Mode 2': {
+          const mode2Params: Mode1Params = {
+            lastPageNumber: params.lastPageNumber,
+            pageHeight: params.pageHeight,
+            pageHeightUnit: params.pageHeightUnit,
+          };
+          cutModeResult = await Mode2Service.execute(imageProcessingResult, mode2Params);
           break;
-        case 'Mode 3':
-          cutModeResult = await Mode3Service.execute(imageProcessingResult, cutModeParams);
+        }
+        case 'Mode 3': {
+          const mode3Params: Mode1Params = {
+            lastPageNumber: params.lastPageNumber,
+            pageHeight: params.pageHeight,
+            pageHeightUnit: params.pageHeightUnit,
+          };
+          cutModeResult = await Mode3Service.execute(imageProcessingResult, mode3Params);
           break;
-        case 'Cut and Fold':
-          cutModeResult = await CutAndFoldService.execute(imageProcessingResult, cutModeParams);
+        }
+        case 'Cut and Fold': {
+          const cutAndFoldParams: CutAndFoldParams = {
+            lastPageNumber: params.lastPageNumber,
+            pageHeight: params.pageHeight,
+            pageHeightUnit: params.pageHeightUnit,
+            threshold: params.threshold,
+            precision: params.precision,
+          };
+          cutModeResult = await CutAndFoldService.execute(imageProcessingResult, cutAndFoldParams);
           break;
+        }
         default:
           throw new Error(`Mode de cut inconnu: ${params.cutMode}`);
       }
