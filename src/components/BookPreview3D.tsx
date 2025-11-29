@@ -160,6 +160,58 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   );
 };
 
+/**
+ * Inverts zones for Embossed mode
+ * Takes zones and returns the complementary zones (the gaps between zones)
+ * Example: zones [2-5cm, 8-10cm] on 20cm page → inverted zones [0-2cm, 5-8cm, 10-20cm]
+ */
+function invertZones(zones: Array<{ startMark: number; endMark: number; height: number }>, pageHeight: number): Array<{ startMark: number; endMark: number; height: number }> {
+  if (zones.length === 0) {
+    // No zones means entire page is inverted (one big zone)
+    return [{
+      startMark: 0,
+      endMark: pageHeight,
+      height: pageHeight,
+    }];
+  }
+
+  const invertedZones: Array<{ startMark: number; endMark: number; height: number }> = [];
+  const sortedZones = [...zones].sort((a, b) => a.startMark - b.startMark);
+
+  // Add zone from start to first zone
+  if (sortedZones[0].startMark > 0) {
+    invertedZones.push({
+      startMark: 0,
+      endMark: sortedZones[0].startMark,
+      height: sortedZones[0].startMark,
+    });
+  }
+
+  // Add zones between existing zones
+  for (let i = 0; i < sortedZones.length - 1; i++) {
+    const gap = sortedZones[i + 1].startMark - sortedZones[i].endMark;
+    if (gap > 0.01) { // Small threshold to avoid tiny gaps
+      invertedZones.push({
+        startMark: sortedZones[i].endMark,
+        endMark: sortedZones[i + 1].startMark,
+        height: gap,
+      });
+    }
+  }
+
+  // Add zone from last zone to end
+  const lastZone = sortedZones[sortedZones.length - 1];
+  if (lastZone.endMark < pageHeight) {
+    invertedZones.push({
+      startMark: lastZone.endMark,
+      endMark: pageHeight,
+      height: pageHeight - lastZone.endMark,
+    });
+  }
+
+  return invertedZones;
+}
+
 function createBook(
   scene: THREE.Scene,
   pattern: PagePattern[] | undefined,
@@ -282,8 +334,15 @@ function createBook(
       const shearZ = zOuter - zSpine;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
+        // For Embossed mode, invert the zones for 3D rendering
+        let zonesToRender = pagePattern.zones;
+        if (cutMode === 'Embossed') {
+          zonesToRender = invertZones(pagePattern.zones, pageHeight);
+        }
+
         // Create page with fold zones
-        const pageGroup = createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zSpine, cutDepth, pageThicknesses.get(i)!, cutMode);
+        const modifiedPattern = { ...pagePattern, zones: zonesToRender };
+        const pageGroup = createPageWithCutsAndFolds(scene, modifiedPattern, pageHeight, pageWidth, zSpine, cutDepth, pageThicknesses.get(i)!, cutMode);
         // Apply shear transform for trapezoid effect
         if (Math.abs(shearZ) > 0.001) {
           applyShearTransformToGroup(pageGroup, shearZ, pageWidth);
