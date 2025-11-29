@@ -243,8 +243,14 @@ function createBook(
       let pageThickness = basePageThickness;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
+        // For Embossed, calculate thickness on inverted zones (the actual folds)
+        let zonesToMeasure = pagePattern.zones;
+        if (cutMode === 'Embossed') {
+          zonesToMeasure = invertZones(pagePattern.zones, pageHeight);
+        }
+
         // Add extra thickness based on fold zones
-        const totalFoldHeight = pagePattern.zones.reduce((sum, zone) => sum + zone.height, 0);
+        const totalFoldHeight = zonesToMeasure.reduce((sum, zone) => sum + zone.height, 0);
         pageThickness += totalFoldHeight * foldThicknessFactor;
       }
 
