@@ -243,11 +243,12 @@ function createBook(
       let pageThickness = basePageThickness;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
-        // For Embossed, calculate thickness on inverted zones (the actual folds)
+        // For Inverted, calculate thickness on inverted zones (the actual folds)
         let zonesToMeasure = pagePattern.zones;
-        if (cutMode === 'Embossed') {
+        if (cutMode === 'Inverted') {
           zonesToMeasure = invertZones(pagePattern.zones, pageHeight);
         }
+        // For Embossed, use zones as-is (the white zones are the actual folds)
 
         // Add extra thickness based on fold zones
         const totalFoldHeight = zonesToMeasure.reduce((sum, zone) => sum + zone.height, 0);
@@ -340,11 +341,12 @@ function createBook(
       const shearZ = zOuter - zSpine;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
-        // For Embossed mode, invert the zones for 3D rendering
+        // For Inverted mode, invert the zones for 3D rendering (fold the complementary zones)
         let zonesToRender = pagePattern.zones;
-        if (cutMode === 'Embossed') {
+        if (cutMode === 'Inverted') {
           zonesToRender = invertZones(pagePattern.zones, pageHeight);
         }
+        // For Embossed mode, use zones as-is (fold the detected white zones)
 
         // Create page with fold zones
         const modifiedPattern = { ...pagePattern, zones: zonesToRender };
