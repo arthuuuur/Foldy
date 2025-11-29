@@ -239,13 +239,20 @@ export class CutAndFoldService {
           ? params.pageHeight * 2.54
           : params.pageHeight;
 
+      // Calculer le nombre de pages physiques
+      // lastPageNumber est le numéro de la dernière page (ex: 10)
+      // Nombre de pages physiques = lastPageNumber / 2 (car chaque page a 2 faces)
+      const physicalPages = Math.ceil(params.lastPageNumber / 2);
+
+      console.log(`📖 Dernière page: ${params.lastPageNumber} → ${physicalPages} pages physiques`);
+
       // Extraire les ImageData depuis l'image base64
       const imgData = await this.getImageData(imageData.processedImage);
 
       // Générer le pattern
       const pattern = this.generatePattern(
         imgData,
-        params.lastPageNumber,
+        physicalPages,
         pageHeightInCm,
         threshold,
         precision
@@ -255,7 +262,7 @@ export class CutAndFoldService {
       const pagesWithContent = pattern.filter((p) => p.hasContent).length;
       const totalZones = pattern.reduce((sum, p) => sum + p.zones.length, 0);
 
-      console.log(`Pattern généré: ${pagesWithContent}/${params.lastPageNumber} pages avec contenu, ${totalZones} zones au total`);
+      console.log(`Pattern généré: ${pagesWithContent}/${physicalPages} pages physiques avec contenu, ${totalZones} zones au total`);
 
       return {
         success: true,

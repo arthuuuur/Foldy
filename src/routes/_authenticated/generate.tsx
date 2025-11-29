@@ -334,9 +334,11 @@ function RouteComponent() {
                             fullWidth
                             value={lastPageNumber}
                             onChange={(e) => setLastPageNumber(e.target.value === '' ? '' : Number(e.target.value))}
+                            helperText={`${typeof lastPageNumber === 'number' ? Math.ceil(lastPageNumber / 2) : 150} physical pages (2 page numbers per sheet)`}
                             sx={{
                                 mb: 2,
                                 '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                '& .MuiFormHelperText-root': { color: '#64748b' },
                                 '& .MuiOutlinedInput-root': {
                                     color: 'white',
                                     '& fieldset': { borderColor: '#475569' },
@@ -712,7 +714,7 @@ function RouteComponent() {
                                     <BookPreview3D
                                         pattern={generatedPattern || undefined}
                                         pageHeight={typeof pageHeight === 'number' ? pageHeight : 20}
-                                        numberOfPages={typeof lastPageNumber === 'number' ? lastPageNumber : 300}
+                                        numberOfPages={typeof lastPageNumber === 'number' ? Math.ceil(lastPageNumber / 2) : 150}
                                         bookDepth={typeof bookDepth === 'number' ? bookDepth : 3}
                                         cutDepth={typeof cutDepth === 'number' ? cutDepth : 1}
                                         unit={pageHeightUnit}
