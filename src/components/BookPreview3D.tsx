@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { PagePattern } from '../services/cutModes/cutAndFold.service';
+import type { PagePattern } from '../services/cutModes/inverted.service';
+import type { CutMode } from '../services/generate.service';
 
 interface BookPreview3DProps {
   pattern?: PagePattern[]; // Optional - for preview mode without pattern
@@ -11,6 +12,7 @@ interface BookPreview3DProps {
   bookDepth?: number; // in cm, thickness at spine
   cutDepth?: number; // in cm, depth of cuts from edge (default 1cm)
   unit?: 'cm' | 'in';
+  cutMode?: CutMode; // The folding technique being used
 }
 
 export const BookPreview3D: React.FC<BookPreview3DProps> = ({
@@ -21,6 +23,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   bookDepth = 3,
   cutDepth = 1,
   unit = 'cm',
+  cutMode = 'Inverted',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{
@@ -107,7 +110,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     scene.add(fillLight);
 
     // Create book geometry
-    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, depthInCm, cutDepthInCm);
+    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, depthInCm, cutDepthInCm, cutMode);
 
     // Animation loop
     const animate = () => {
@@ -164,7 +167,8 @@ function createBook(
   pageWidth: number,
   numberOfPages: number,
   totalDepth: number,
-  cutDepth: number
+  cutDepth: number,
+  cutMode: CutMode = 'Inverted'
 ) {
   console.log('🔍 Book dimensions:', {
     'Width (X-axis)': pageWidth + 'cm',
@@ -265,6 +269,11 @@ function createBook(
     for (let i = 0; i < numberOfPages; i++) {
       const pagePattern = pattern.find(p => p.page === i + 1);
 
+      // Skip this page if it's marked as skipped (Shadow Fold mode)
+      if (pagePattern && 'isSkipped' in pagePattern && pagePattern.isSkipped) {
+        continue;
+      }
+
       // Position at spine (compact, uniform distribution)
       const zSpine = totalDepth / 2 - spineDepthPositions.get(i)! - (totalDepth / numberOfPages) / 2;
       // Position at outer edge (expanded due to folds)
@@ -274,7 +283,7 @@ function createBook(
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
         // Create page with fold zones
-        const pageGroup = createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zSpine, cutDepth, pageThicknesses.get(i)!);
+        const pageGroup = createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zSpine, cutDepth, pageThicknesses.get(i)!, cutMode);
         // Apply shear transform for trapezoid effect
         if (Math.abs(shearZ) > 0.001) {
           applyShearTransformToGroup(pageGroup, shearZ, pageWidth);
@@ -363,7 +372,8 @@ function createPageWithCutsAndFolds(
   pageWidth: number,
   zPosition: number,
   cutDepth: number,
-  thickness: number
+  thickness: number,
+  cutMode: CutMode = 'Inverted'
 ): THREE.Group {
 
   // Sort zones by startMark to process them in order

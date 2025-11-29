@@ -30,7 +30,7 @@ import {
     Grid as GridIcon,
 } from 'lucide-react'
 import { GenerateService, type CutMode } from '../../services/generate.service'
-import type { PagePattern } from '../../services/cutModes/cutAndFold.service'
+import type { PagePattern } from '../../services/cutModes/inverted.service'
 import { BookPreview3D } from '../../components/BookPreview3D'
 
 export const Route = createFileRoute('/_authenticated/generate')({
@@ -57,12 +57,14 @@ function RouteComponent() {
     const [bookDepth, setBookDepth] = useState<number | ''>(3)
     const [cutDepth, setCutDepth] = useState<number | ''>(1)
     const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
-    const [cutMode, setCutMode] = useState<CutMode>('Cut and Fold')
+    const [cutMode, setCutMode] = useState<CutMode>('Inverted')
     const [threshold, setThreshold] = useState<number>(128)
     const [precision, setPrecision] = useState<'exact' | '0.1mm' | '0.5mm' | '1mm'>('0.1mm')
+    const [shadowFoldType, setShadowFoldType] = useState<'regular' | '2/3'>('regular')
+    const [combiEdgeWidth, setCombiEdgeWidth] = useState<number | ''>(2)
 
     const acceptedFormats = '.png,.jpg,.jpeg,.svg'
-    const cutModeOptions: CutMode[] = ['Mode 1', 'Mode 2', 'Mode 3', 'Cut and Fold']
+    const cutModeOptions: CutMode[] = ['Inverted', 'Embossed', 'Combi', 'Shadow Fold', 'MMF']
 
     // Ajouter une classe au body pour les styles spécifiques à cette page
     useEffect(() => {
@@ -149,6 +151,8 @@ function RouteComponent() {
                 pageHeightUnit: pageHeightUnit,
                 threshold: threshold,
                 precision: precision,
+                shadowFoldType: shadowFoldType,
+                combiEdgeWidth: typeof combiEdgeWidth === 'number' ? combiEdgeWidth : undefined,
             })
 
             if (result.success) {
@@ -550,7 +554,7 @@ function RouteComponent() {
                                     <FormControl
                                         fullWidth
                                         sx={{
-                                            mb: 0,
+                                            mb: 2,
                                             '& .MuiInputLabel-root': { color: '#94a3b8' },
                                             '& .MuiOutlinedInput-root': {
                                                 color: 'white',
@@ -574,10 +578,81 @@ function RouteComponent() {
                                     </FormControl>
                                     <Typography
                                         variant="caption"
-                                        sx={{ color: '#64748b', display: 'block', mt: 0.5 }}
+                                        sx={{ color: '#64748b', display: 'block', mt: 0.5, mb: 2 }}
                                     >
                                         Rounding precision for pattern values (startMark, endMark, height)
                                     </Typography>
+
+                                    {/* Shadow Fold Type - only for Shadow Fold mode */}
+                                    {cutMode === 'Shadow Fold' && (
+                                        <>
+                                            <FormControl
+                                                fullWidth
+                                                sx={{
+                                                    mb: 2,
+                                                    '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                                    '& .MuiOutlinedInput-root': {
+                                                        color: 'white',
+                                                        '& fieldset': { borderColor: '#475569' },
+                                                        '&:hover fieldset': { borderColor: '#64748b' },
+                                                        '&.Mui-focused fieldset': { borderColor: '#90caf9' },
+                                                    },
+                                                }}
+                                            >
+                                                <InputLabel>Shadow Fold Type</InputLabel>
+                                                <Select
+                                                    value={shadowFoldType}
+                                                    label="Shadow Fold Type"
+                                                    onChange={(e) => setShadowFoldType(e.target.value as 'regular' | '2/3')}
+                                                >
+                                                    <MenuItem value="regular">Regular (Fold 1, Skip 1)</MenuItem>
+                                                    <MenuItem value="2/3">2/3 (Fold 2, Skip 1)</MenuItem>
+                                                </Select>
+                                            </FormControl>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{ color: '#64748b', display: 'block', mt: 0.5, mb: 2 }}
+                                            >
+                                                Regular: fold 1 page, skip 1 page. 2/3: fold 2 pages, skip 1 page
+                                            </Typography>
+                                        </>
+                                    )}
+
+                                    {/* Combi Edge Width - only for Combi mode */}
+                                    {cutMode === 'Combi' && (
+                                        <>
+                                            <TextField
+                                                label="Combi edge width"
+                                                type="number"
+                                                fullWidth
+                                                value={combiEdgeWidth}
+                                                onChange={(e) => setCombiEdgeWidth(e.target.value === '' ? '' : Number(e.target.value))}
+                                                InputProps={{
+                                                    endAdornment: (
+                                                        <InputAdornment position="end">
+                                                            <span style={{ color: '#94a3b8' }}>{pageHeightUnit}</span>
+                                                        </InputAdornment>
+                                                    ),
+                                                }}
+                                                sx={{
+                                                    mb: 2,
+                                                    '& .MuiInputLabel-root': { color: '#94a3b8' },
+                                                    '& .MuiOutlinedInput-root': {
+                                                        color: 'white',
+                                                        '& fieldset': { borderColor: '#475569' },
+                                                        '&:hover fieldset': { borderColor: '#64748b' },
+                                                        '&.Mui-focused fieldset': { borderColor: '#90caf9' },
+                                                    },
+                                                }}
+                                            />
+                                            <Typography
+                                                variant="caption"
+                                                sx={{ color: '#64748b', display: 'block', mt: 0.5, mb: 0 }}
+                                            >
+                                                Width of edge folds (top and bottom) for Combi mode
+                                            </Typography>
+                                        </>
+                                    )}
                                 </Paper>
                             </Collapse>
                         </Box>
@@ -718,6 +793,7 @@ function RouteComponent() {
                                         bookDepth={typeof bookDepth === 'number' ? bookDepth : 3}
                                         cutDepth={typeof cutDepth === 'number' ? cutDepth : 1}
                                         unit={pageHeightUnit}
+                                        cutMode={cutMode}
                                     />
                                 </Box>
                             ) : (
