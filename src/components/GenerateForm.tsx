@@ -1,8 +1,10 @@
 /**
  * Composant de formulaire pour les paramètres de génération
  * Affiche tous les champs nécessaires pour configurer la génération du pattern
+ * Optimisé avec React.memo pour éviter les re-renders inutiles
  */
 
+import { memo } from 'react';
 import {
   Box,
   TextField,
@@ -53,7 +55,7 @@ interface GenerateFormProps {
   onAdvancedToggle?: () => void;
 }
 
-export function GenerateForm({
+const GenerateFormComponent = ({
   lastPageNumber,
   pageHeight,
   bookDepth,
@@ -77,7 +79,7 @@ export function GenerateForm({
   cutModeOptions = ['Inverted', 'Embossed', 'Combi', 'Shadow Fold', 'MMF'],
   isAdvancedOpen = false,
   onAdvancedToggle,
-}: GenerateFormProps) {
+}: GenerateFormProps) => {
   return (
     <Box>
       {/* Mode de Cut */}
@@ -294,4 +296,10 @@ export function GenerateForm({
       </Box>
     </Box>
   );
-}
+};
+
+/**
+ * Export mémoïsé pour éviter les re-renders inutiles
+ * Le composant ne se re-render que si les props changent
+ */
+export const GenerateForm = memo(GenerateFormComponent);

@@ -1,9 +1,11 @@
 /**
  * Hook personnalisé pour gérer l'état et la logique du formulaire de génération
+ * Optimisé avec useCallback pour éviter la recréation des fonctions
  */
 
 import { useState, useCallback } from 'react';
 import { GenerateService, type CutMode } from '../services/generate.service';
+import { ErrorService } from '../services/error.service';
 import type { PagePattern } from '../types/cutMode.types';
 import type { Precision } from '../types/cutMode.types';
 
@@ -100,14 +102,16 @@ export function useGenerateForm() {
     setGenerationError(null);
     setGenerationSuccess(null);
 
-    // Validation
+    // Validation avec ErrorService
     if (!uploadedImage) {
-      setGenerationError('Veuillez uploader une image');
+      const error = ErrorService.validationError('image', 'aucune image uploadée');
+      setGenerationError(error.message);
       return;
     }
 
     if (!cutMode) {
-      setGenerationError('Veuillez sélectionner un mode de cut');
+      const error = ErrorService.validationError('mode de cut', 'aucun mode sélectionné');
+      setGenerationError(error.message);
       return;
     }
 
@@ -137,10 +141,23 @@ export function useGenerateForm() {
           setCurrentPageIndex(0); // Réinitialiser à la première page
         }
       } else {
-        setGenerationError(result.message);
+        const appError = ErrorService.generationError(result.message);
+        setGenerationError(appError.message);
       }
     } catch (error) {
-      setGenerationError(`Erreur inattendue: ${error}`);
+      // Gestion d'erreur avec ErrorService
+      const appError = ErrorService.fromNativeError(
+        error instanceof Error ? error : new Error(String(error)),
+        'Une erreur inattendue s\'est produite lors de la génération',
+        'high'
+      );
+      ErrorService.log(appError);
+      setGenerationError(appError.message);
+
+      // Reporter les erreurs critiques
+      if (appError.severity === 'critical' || appError.severity === 'high') {
+        ErrorService.reportToCrashReporting(appError);
+      }
     } finally {
       setIsGenerating(false);
     }

@@ -1,8 +1,10 @@
 /**
  * Composant de visualisation 2D des patterns générés
  * Affiche les statistiques, la grille de pages et les détails des zones
+ * Optimisé avec React.memo et useMemo pour les calculs coûteux
  */
 
+import { memo, useMemo } from 'react';
 import { Box, Paper, Typography, IconButton } from '@mui/material';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { PagePattern } from '../types/cutMode.types';
@@ -16,15 +18,21 @@ interface PatternVisualization2DProps {
   onPageChange: (index: number) => void;
 }
 
-export function PatternVisualization2D({
+const PatternVisualization2DComponent = ({
   pattern,
   currentPageIndex,
   onPageChange,
-}: PatternVisualization2DProps) {
+}: PatternVisualization2DProps) => {
+  // Mémoïser les calculs de statistiques pour éviter de les recalculer à chaque render
+  const stats = useMemo(() => {
+    return {
+      totalPages: pattern.length,
+      pagesWithContent: pattern.filter((p) => p.hasContent).length,
+      totalZones: pattern.reduce((sum, p) => sum + p.zones.length, 0),
+    };
+  }, [pattern]);
+
   const currentPage = pattern[currentPageIndex];
-  const totalPages = pattern.length;
-  const pagesWithContent = pattern.filter((p) => p.hasContent).length;
-  const totalZones = pattern.reduce((sum, p) => sum + p.zones.length, 0);
 
   return (
     <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
@@ -36,7 +44,7 @@ export function PatternVisualization2D({
               Total Pages
             </Typography>
             <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 600 }}>
-              {totalPages}
+              {stats.totalPages}
             </Typography>
           </Box>
           <Box>
@@ -44,7 +52,7 @@ export function PatternVisualization2D({
               Pages avec contenu
             </Typography>
             <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 600 }}>
-              {pagesWithContent}
+              {stats.pagesWithContent}
             </Typography>
           </Box>
           <Box>
@@ -52,7 +60,7 @@ export function PatternVisualization2D({
               Zones totales
             </Typography>
             <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 600 }}>
-              {totalZones}
+              {stats.totalZones}
             </Typography>
           </Box>
         </Box>
@@ -245,4 +253,10 @@ export function PatternVisualization2D({
       </Box>
     </Box>
   );
-}
+};
+
+/**
+ * Export mémoïsé pour éviter les re-renders inutiles
+ * Le composant ne se re-render que si pattern, currentPageIndex ou onPageChange changent
+ */
+export const PatternVisualization2D = memo(PatternVisualization2DComponent);

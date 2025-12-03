@@ -21,12 +21,17 @@ import { ImageUpload } from '../../components/ImageUpload';
 import { GenerateForm } from '../../components/GenerateForm';
 import { PatternVisualization2D } from '../../components/PatternVisualization2D';
 import { BookPreview3D } from '../../components/BookPreview3D';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 
 // Hook personnalisé
 import { useGenerateForm } from '../../hooks/useGenerateForm';
 
 export const Route = createFileRoute('/_authenticated/generate')({
-  component: RouteComponent,
+  component: () => (
+    <ErrorBoundary fallbackMessage="Une erreur s'est produite lors du chargement de la page de génération.">
+      <RouteComponent />
+    </ErrorBoundary>
+  ),
 });
 
 function RouteComponent() {

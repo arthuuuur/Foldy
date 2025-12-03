@@ -1,9 +1,10 @@
 /**
  * Composant d'upload d'image avec drag & drop
  * Gère l'upload, la prévisualisation et la suppression d'images
+ * Optimisé avec React.memo pour éviter les re-renders inutiles
  */
 
-import { useRef, useState, DragEvent } from 'react';
+import { useRef, useState, DragEvent, memo } from 'react';
 import { Box, Button, IconButton } from '@mui/material';
 import { CloudUploadIcon, X } from 'lucide-react';
 
@@ -22,14 +23,14 @@ interface ImageUploadProps {
   acceptedExtensions?: string[];
 }
 
-export function ImageUpload({
+const ImageUploadComponent = ({
   uploadedImage,
   imagePreview,
   onImageChange,
   onImageRemove,
   acceptedFormats = '.png,.jpg,.jpeg,.svg',
   acceptedExtensions = ['png', 'jpg', 'jpeg', 'svg'],
-}: ImageUploadProps) {
+}: ImageUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -173,4 +174,11 @@ export function ImageUpload({
       )}
     </Box>
   );
-}
+};
+
+/**
+ * Export mémoïsé pour éviter les re-renders inutiles
+ * Le composant ne se re-render que si uploadedImage, imagePreview,
+ * onImageChange ou onImageRemove changent
+ */
+export const ImageUpload = memo(ImageUploadComponent);
