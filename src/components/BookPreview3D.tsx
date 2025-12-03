@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { PagePattern } from '../services/cutModes/cutAndFold.service';
+import type { PagePattern } from '../services/cutModes/inverted.service';
+import type { CutMode } from '../services/generate.service';
 
 interface BookPreview3DProps {
   pattern?: PagePattern[]; // Optional - for preview mode without pattern
@@ -11,6 +12,7 @@ interface BookPreview3DProps {
   bookDepth?: number; // in cm, thickness at spine
   cutDepth?: number; // in cm, depth of cuts from edge (default 1cm)
   unit?: 'cm' | 'in';
+  cutMode?: CutMode; // The folding technique being used
 }
 
 export const BookPreview3D: React.FC<BookPreview3DProps> = ({
@@ -21,6 +23,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   bookDepth = 3,
   cutDepth = 1,
   unit = 'cm',
+  cutMode = 'Inverted',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{
@@ -107,7 +110,7 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
     scene.add(fillLight);
 
     // Create book geometry
-    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, depthInCm, cutDepthInCm);
+    createBook(scene, pattern, heightInCm, widthInCm, numberOfPages, depthInCm, cutDepthInCm, cutMode);
 
     // Animation loop
     const animate = () => {
@@ -157,6 +160,58 @@ export const BookPreview3D: React.FC<BookPreview3DProps> = ({
   );
 };
 
+/**
+ * Inverts zones for Embossed mode
+ * Takes zones and returns the complementary zones (the gaps between zones)
+ * Example: zones [2-5cm, 8-10cm] on 20cm page → inverted zones [0-2cm, 5-8cm, 10-20cm]
+ */
+function invertZones(zones: Array<{ startMark: number; endMark: number; height: number }>, pageHeight: number): Array<{ startMark: number; endMark: number; height: number }> {
+  if (zones.length === 0) {
+    // No zones means entire page is inverted (one big zone)
+    return [{
+      startMark: 0,
+      endMark: pageHeight,
+      height: pageHeight,
+    }];
+  }
+
+  const invertedZones: Array<{ startMark: number; endMark: number; height: number }> = [];
+  const sortedZones = [...zones].sort((a, b) => a.startMark - b.startMark);
+
+  // Add zone from start to first zone
+  if (sortedZones[0].startMark > 0) {
+    invertedZones.push({
+      startMark: 0,
+      endMark: sortedZones[0].startMark,
+      height: sortedZones[0].startMark,
+    });
+  }
+
+  // Add zones between existing zones
+  for (let i = 0; i < sortedZones.length - 1; i++) {
+    const gap = sortedZones[i + 1].startMark - sortedZones[i].endMark;
+    if (gap > 0.01) { // Small threshold to avoid tiny gaps
+      invertedZones.push({
+        startMark: sortedZones[i].endMark,
+        endMark: sortedZones[i + 1].startMark,
+        height: gap,
+      });
+    }
+  }
+
+  // Add zone from last zone to end
+  const lastZone = sortedZones[sortedZones.length - 1];
+  if (lastZone.endMark < pageHeight) {
+    invertedZones.push({
+      startMark: lastZone.endMark,
+      endMark: pageHeight,
+      height: pageHeight - lastZone.endMark,
+    });
+  }
+
+  return invertedZones;
+}
+
 function createBook(
   scene: THREE.Scene,
   pattern: PagePattern[] | undefined,
@@ -164,7 +219,8 @@ function createBook(
   pageWidth: number,
   numberOfPages: number,
   totalDepth: number,
-  cutDepth: number
+  cutDepth: number,
+  cutMode: CutMode = 'Inverted'
 ) {
   console.log('🔍 Book dimensions:', {
     'Width (X-axis)': pageWidth + 'cm',
@@ -187,8 +243,16 @@ function createBook(
       let pageThickness = basePageThickness;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
+        // Both Inverted and Embossed calculate thickness on inverted zones (actual folds)
+        // Inverted: detects BLACK → inverts → measures WHITE zones
+        // Embossed: detects WHITE → inverts → measures BLACK zones
+        let zonesToMeasure = pagePattern.zones;
+        if (cutMode === 'Inverted' || cutMode === 'Embossed') {
+          zonesToMeasure = invertZones(pagePattern.zones, pageHeight);
+        }
+
         // Add extra thickness based on fold zones
-        const totalFoldHeight = pagePattern.zones.reduce((sum, zone) => sum + zone.height, 0);
+        const totalFoldHeight = zonesToMeasure.reduce((sum, zone) => sum + zone.height, 0);
         pageThickness += totalFoldHeight * foldThicknessFactor;
       }
 
@@ -265,6 +329,11 @@ function createBook(
     for (let i = 0; i < numberOfPages; i++) {
       const pagePattern = pattern.find(p => p.page === i + 1);
 
+      // Skip this page if it's marked as skipped (Shadow Fold mode)
+      if (pagePattern && 'isSkipped' in pagePattern && pagePattern.isSkipped) {
+        continue;
+      }
+
       // Position at spine (compact, uniform distribution)
       const zSpine = totalDepth / 2 - spineDepthPositions.get(i)! - (totalDepth / numberOfPages) / 2;
       // Position at outer edge (expanded due to folds)
@@ -273,8 +342,17 @@ function createBook(
       const shearZ = zOuter - zSpine;
 
       if (pagePattern && pagePattern.hasContent && pagePattern.zones.length > 0) {
+        // Both Inverted and Embossed invert zones for 3D rendering
+        // Inverted: detects BLACK → inverts → folds on WHITE zones
+        // Embossed: detects WHITE → inverts → folds on BLACK zones
+        let zonesToRender = pagePattern.zones;
+        if (cutMode === 'Inverted' || cutMode === 'Embossed') {
+          zonesToRender = invertZones(pagePattern.zones, pageHeight);
+        }
+
         // Create page with fold zones
-        const pageGroup = createPageWithCutsAndFolds(scene, pagePattern, pageHeight, pageWidth, zSpine, cutDepth, pageThicknesses.get(i)!);
+        const modifiedPattern = { ...pagePattern, zones: zonesToRender };
+        const pageGroup = createPageWithCutsAndFolds(scene, modifiedPattern, pageHeight, pageWidth, zSpine, cutDepth, pageThicknesses.get(i)!, cutMode);
         // Apply shear transform for trapezoid effect
         if (Math.abs(shearZ) > 0.001) {
           applyShearTransformToGroup(pageGroup, shearZ, pageWidth);
@@ -363,7 +441,8 @@ function createPageWithCutsAndFolds(
   pageWidth: number,
   zPosition: number,
   cutDepth: number,
-  thickness: number
+  thickness: number,
+  cutMode: CutMode = 'Inverted'
 ): THREE.Group {
 
   // Sort zones by startMark to process them in order
