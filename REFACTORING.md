@@ -198,11 +198,57 @@ export default MyNewModeService;
 - Vérification patterns générés
 - Validation erreurs
 
-## 📋 Prochaines Phases
+### Phase 4 : Découpage generate.tsx ✅
 
-### Phase 4 : Découpage generate.tsx
-- Extraire composants : `ImageUpload`, `GenerateForm`, `PatternVisualization`
-- Réduire de 1020 lignes à ~200-300 lignes
+#### Composants Créés
+
+**`src/components/ImageUpload.tsx`** (176 lignes)
+- Upload d'image avec drag & drop
+- Prévisualisation d'image
+- Validation des formats
+- **Bénéfice** : Composant réutilisable, logique isolée
+
+**`src/components/GenerateForm.tsx`** (297 lignes)
+- Formulaire de paramètres complet
+- Gestion des champs spécifiques par mode
+- Section Advanced Settings
+- **Bénéfice** : Séparation des responsabilités, validation centralisée
+
+**`src/components/PatternVisualization2D.tsx`** (248 lignes)
+- Statistiques globales (pages, zones)
+- Grille de navigation entre pages
+- Détails des zones de pliage
+- **Bénéfice** : Visualisation isolée, réutilisable
+
+**`src/hooks/useGenerateForm.ts`** (204 lignes)
+- Hook personnalisé pour toute la logique métier
+- Gestion de 15+ états
+- Actions de génération et manipulation d'image
+- **Bénéfice** : Logique testable séparément du UI
+
+#### Résultats
+
+**Fichier refactorisé : `src/routes/_authenticated/generate.tsx`**
+- Avant : 1020 lignes monolithiques
+- Après : 378 lignes (-63%)
+- Focus sur : Layout et orchestration uniquement
+
+**Composition du nouveau code :**
+- generate.tsx : 378 lignes (orchestration)
+- ImageUpload : 176 lignes (upload)
+- GenerateForm : 297 lignes (formulaire)
+- PatternVisualization2D : 248 lignes (visualisation)
+- useGenerateForm : 204 lignes (logique métier)
+- **Total : 1303 lignes** réparties en 5 fichiers
+
+**Amélioration :**
+- ✅ Code 63% plus court dans le fichier principal
+- ✅ 4 composants réutilisables créés
+- ✅ Séparation claire des responsabilités
+- ✅ Hook testable pour la logique métier
+- ✅ Maintenabilité grandement améliorée
+
+## 📋 Prochaines Phases
 
 ### Phase 5 : Optimisation Performances
 - React.memo sur composants
