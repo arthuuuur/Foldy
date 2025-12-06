@@ -29,39 +29,48 @@ import {
     Box as BoxIcon,
     Grid as GridIcon,
 } from 'lucide-react'
-import { GenerateService, type CutMode } from '../../services/generate.service'
-import type { PagePattern } from '../../services/cutModes/inverted.service'
+import { type CutMode } from '../../services/PatternGeneratorService'
+import type { PagePattern } from '../../services/cutModes/base/types'
 import { BookPreview3D } from '../../components/BookPreview3D'
+import { useUnitPreferences } from '../../contexts/UnitPreferencesContext'
+import { usePrecision } from '../../contexts/PrecisionContext'
+import { usePatternGenerator } from '../../hooks/usePatternGenerator'
 
 export const Route = createFileRoute('/_authenticated/generate')({
     component: RouteComponent,
 })
 
 function RouteComponent() {
+    // Contexts globaux (unité et précision)
+    const { unit, setUnit } = useUnitPreferences()
+    const { precision, setPrecision } = usePrecision()
+    const { generate, result, isGenerating } = usePatternGenerator()
+
+    // UI State
     const [isPanelOpen, setIsPanelOpen] = useState(true)
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
     const [uploadedImage, setUploadedImage] = useState<File | null>(null)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
-    const [hasGenerated, setHasGenerated] = useState(false)
     const [isDragging, setIsDragging] = useState(false)
-    const [isGenerating, setIsGenerating] = useState(false)
     const [generationError, setGenerationError] = useState<string | null>(null)
     const [generationSuccess, setGenerationSuccess] = useState<string | null>(null)
-    const [generatedPattern, setGeneratedPattern] = useState<PagePattern[] | null>(null)
     const [currentPageIndex, setCurrentPageIndex] = useState(0)
     const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d')
     const fileInputRef = useRef<HTMLInputElement>(null)
 
+    // Paramètres de génération
     const [lastPageNumber, setLastPageNumber] = useState<number | ''>(300)
     const [pageHeight, setPageHeight] = useState<number | ''>(20)
     const [bookDepth, setBookDepth] = useState<number | ''>(3)
     const [cutDepth, setCutDepth] = useState<number | ''>(1)
-    const [pageHeightUnit, setPageHeightUnit] = useState<'cm' | 'in'>('cm')
     const [cutMode, setCutMode] = useState<CutMode>('Inverted')
     const [threshold, setThreshold] = useState<number>(128)
-    const [precision, setPrecision] = useState<'exact' | '0.1mm' | '0.5mm' | '1mm'>('0.1mm')
-    const [shadowFoldType, setShadowFoldType] = useState<'regular' | '2/3'>('regular')
+    const [shadowFoldType, setShadowFoldType] = useState<'1:1' | '2:1'>('1:1')
     const [combiEdgeWidth, setCombiEdgeWidth] = useState<number | ''>(2)
+
+    // Extracted pattern depuis result
+    const generatedPattern = result?.patternResult?.data?.pattern || null
+    const hasGenerated = result?.success || false
 
     const acceptedFormats = '.png,.jpg,.jpeg,.svg'
     const cutModeOptions: CutMode[] = ['Inverted', 'Embossed', 'Combi', 'Shadow Fold', 'MMF']
@@ -140,38 +149,28 @@ function RouteComponent() {
             return
         }
 
-        setIsGenerating(true)
+        if (typeof lastPageNumber !== 'number' || typeof pageHeight !== 'number') {
+            setGenerationError('Veuillez remplir tous les champs requis')
+            return
+        }
 
         try {
-            const result = await GenerateService.generate({
+            await generate({
                 image: uploadedImage,
                 cutMode: cutMode,
-                lastPageNumber: typeof lastPageNumber === 'number' ? lastPageNumber : undefined,
-                pageHeight: typeof pageHeight === 'number' ? pageHeight : undefined,
-                pageHeightUnit: pageHeightUnit,
+                lastPageNumber: lastPageNumber,
+                pageHeight: pageHeight,
+                bookDepth: typeof bookDepth === 'number' ? bookDepth : 3,
+                cutDepth: typeof cutDepth === 'number' ? cutDepth : 1,
                 threshold: threshold,
-                precision: precision,
                 shadowFoldType: shadowFoldType,
                 combiEdgeWidth: typeof combiEdgeWidth === 'number' ? combiEdgeWidth : undefined,
             })
 
-            if (result.success) {
-                setHasGenerated(true)
-                setGenerationSuccess(result.message)
-                console.log('Résultat de la génération:', result)
-
-                // Stocker le pattern généré si disponible
-                if (result.cutModeResult?.data?.pattern) {
-                    setGeneratedPattern(result.cutModeResult.data.pattern)
-                    setCurrentPageIndex(0) // Réinitialiser à la première page
-                }
-            } else {
-                setGenerationError(result.message)
-            }
+            setGenerationSuccess('Pattern généré avec succès !')
+            setCurrentPageIndex(0) // Réinitialiser à la première page
         } catch (error) {
             setGenerationError(`Erreur inattendue: ${error}`)
-        } finally {
-            setIsGenerating(false)
         }
     }
 
@@ -352,7 +351,7 @@ function RouteComponent() {
                             }}
                         />
 
-                        {/* Page height avec unité */}
+                        {/* Page height avec unité GLOBALE */}
                         <TextField
                             label="Page height"
                             type="number"
@@ -363,8 +362,8 @@ function RouteComponent() {
                                 endAdornment: (
                                     <InputAdornment position="end">
                                         <Select
-                                            value={pageHeightUnit}
-                                            onChange={(e) => setPageHeightUnit(e.target.value as 'cm' | 'in')}
+                                            value={unit}
+                                            onChange={(e) => setUnit(e.target.value as 'cm' | 'in')}
                                             sx={{
                                                 color: 'white',
                                                 '.MuiOutlinedInput-notchedOutline': { border: 0 },
@@ -400,7 +399,7 @@ function RouteComponent() {
                             InputProps={{
                                 endAdornment: (
                                     <InputAdornment position="end">
-                                        <span style={{ color: '#94a3b8' }}>{pageHeightUnit}</span>
+                                        <span style={{ color: '#94a3b8' }}>{unit}</span>
                                     </InputAdornment>
                                 ),
                             }}
@@ -426,7 +425,7 @@ function RouteComponent() {
                             InputProps={{
                                 endAdornment: (
                                     <InputAdornment position="end">
-                                        <span style={{ color: '#94a3b8' }}>{pageHeightUnit}</span>
+                                        <span style={{ color: '#94a3b8' }}>{unit}</span>
                                     </InputAdornment>
                                 ),
                             }}
@@ -550,7 +549,7 @@ function RouteComponent() {
                                         </Typography>
                                     </Box>
 
-                                    {/* Precision Select */}
+                                    {/* Precision Select GLOBALE */}
                                     <FormControl
                                         fullWidth
                                         sx={{
@@ -564,13 +563,12 @@ function RouteComponent() {
                                             },
                                         }}
                                     >
-                                        <InputLabel>Pattern precision</InputLabel>
+                                        <InputLabel>Pattern precision (GLOBAL)</InputLabel>
                                         <Select
                                             value={precision}
-                                            label="Pattern precision"
-                                            onChange={(e) => setPrecision(e.target.value as 'exact' | '0.1mm' | '0.5mm' | '1mm')}
+                                            label="Pattern precision (GLOBAL)"
+                                            onChange={(e) => setPrecision(e.target.value as '0.1mm' | '0.5mm' | '1mm')}
                                         >
-                                            <MenuItem value="exact">Exact (no rounding)</MenuItem>
                                             <MenuItem value="0.1mm">0.1mm precision</MenuItem>
                                             <MenuItem value="0.5mm">0.5mm precision</MenuItem>
                                             <MenuItem value="1mm">1mm precision</MenuItem>
@@ -580,7 +578,7 @@ function RouteComponent() {
                                         variant="caption"
                                         sx={{ color: '#64748b', display: 'block', mt: 0.5, mb: 2 }}
                                     >
-                                        Rounding precision for pattern values (startMark, endMark, height)
+                                        Précision globale - les résultats se mettent à jour automatiquement
                                     </Typography>
 
                                     {/* Shadow Fold Type - only for Shadow Fold mode */}
@@ -603,17 +601,17 @@ function RouteComponent() {
                                                 <Select
                                                     value={shadowFoldType}
                                                     label="Shadow Fold Type"
-                                                    onChange={(e) => setShadowFoldType(e.target.value as 'regular' | '2/3')}
+                                                    onChange={(e) => setShadowFoldType(e.target.value as '1:1' | '2:1')}
                                                 >
-                                                    <MenuItem value="regular">Regular (Fold 1, Skip 1)</MenuItem>
-                                                    <MenuItem value="2/3">2/3 (Fold 2, Skip 1)</MenuItem>
+                                                    <MenuItem value="1:1">1:1 (Fold 1, Skip 1)</MenuItem>
+                                                    <MenuItem value="2:1">2:1 (Fold 2, Skip 1)</MenuItem>
                                                 </Select>
                                             </FormControl>
                                             <Typography
                                                 variant="caption"
                                                 sx={{ color: '#64748b', display: 'block', mt: 0.5, mb: 2 }}
                                             >
-                                                Regular: fold 1 page, skip 1 page. 2/3: fold 2 pages, skip 1 page
+                                                1:1: fold 1 page, skip 1 page. 2:1: fold 2 pages, skip 1 page
                                             </Typography>
                                         </>
                                     )}
@@ -630,7 +628,7 @@ function RouteComponent() {
                                                 InputProps={{
                                                     endAdornment: (
                                                         <InputAdornment position="end">
-                                                            <span style={{ color: '#94a3b8' }}>{pageHeightUnit}</span>
+                                                            <span style={{ color: '#94a3b8' }}>{unit}</span>
                                                         </InputAdornment>
                                                     ),
                                                 }}
@@ -792,7 +790,7 @@ function RouteComponent() {
                                         numberOfPages={typeof lastPageNumber === 'number' ? Math.ceil(lastPageNumber / 2) : 150}
                                         bookDepth={typeof bookDepth === 'number' ? bookDepth : 3}
                                         cutDepth={typeof cutDepth === 'number' ? cutDepth : 1}
-                                        unit={pageHeightUnit}
+                                        unit={unit}
                                         cutMode={cutMode}
                                     />
                                 </Box>

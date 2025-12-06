@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { PagePattern } from '../services/cutModes/inverted.service';
-import type { CutMode } from '../services/generate.service';
+import type { PagePattern } from '../services/cutModes/base/types';
+import type { CutMode } from '../services/PatternGeneratorService';
 
 interface BookPreview3DProps {
   pattern?: PagePattern[]; // Optional - for preview mode without pattern

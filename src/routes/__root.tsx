@@ -3,6 +3,8 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import Header from '../components/Header'
+import { UnitPreferencesProvider } from '../contexts/UnitPreferencesContext'
+import { PrecisionProvider } from '../contexts/PrecisionContext'
 
 import appCss from '../styles.css?url'
 
@@ -38,19 +40,23 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Header />
-        {children}
-        <TanStackDevtools
-          config={{
-            position: 'bottom-right',
-          }}
-          plugins={[
-            {
-              name: 'Tanstack Router',
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        <UnitPreferencesProvider>
+          <PrecisionProvider>
+            <Header />
+            {children}
+            <TanStackDevtools
+              config={{
+                position: 'bottom-right',
+              }}
+              plugins={[
+                {
+                  name: 'Tanstack Router',
+                  render: <TanStackRouterDevtoolsPanel />,
+                },
+              ]}
+            />
+          </PrecisionProvider>
+        </UnitPreferencesProvider>
         <Scripts />
       </body>
     </html>
